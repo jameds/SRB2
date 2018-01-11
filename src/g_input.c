@@ -960,6 +960,7 @@ static const char *gamecontrolname[num_gamecontrols] =
 	"straferight",
 	"turnleft",
 	"turnright",
+	"weaponlast",
 	"weaponnext",
 	"weaponprev",
 	"weapon1",
@@ -1162,6 +1163,7 @@ void G_Controldefault(void)
 	gamecontrol[gc_straferight][0] = 'd';
 	gamecontrol[gc_turnleft   ][0] = KEY_LEFTARROW;
 	gamecontrol[gc_turnright  ][0] = KEY_RIGHTARROW;
+	gamecontrol[gc_weaponlast ][0] = 'q';
 	gamecontrol[gc_weaponnext ][0] = 'e';
 	gamecontrol[gc_weaponprev ][0] = 'q';
 	gamecontrol[gc_wepslot1   ][0] = '1';
@@ -1368,3 +1370,40 @@ void Command_Setcontrol2_f(void)
 
 	setcontrol(gamecontrolbis, na);
 }
+
+static void presscontrol (INT32 (*gc)[2], int down)
+{
+	INT32 numctrl;
+	const char *namectrl;
+	INT32 keynum;
+
+	namectrl = COM_Argv(1);
+	numctrl = 0;
+	while (numctrl < num_gamecontrols &&
+			 stricmp(namectrl, gamecontrolname[numctrl]))
+	{
+		numctrl++;
+	}
+	if (numctrl == num_gamecontrols)
+	{
+		CONS_Printf(M_GetText("Unknown control '%s'\n"), namectrl);
+		return;
+	}
+
+	if ((keynum = gc[numctrl][! gc[numctrl][0]]))
+		gamekeydown[keynum] = down;
+}
+
+#define DEFCON(s, gc, down) \
+{ \
+	if (COM_Argc() != 2) \
+	{ \
+		CONS_Printf(M_GetText(s)); \
+		return; \
+	} \
+	presscontrol(gc, down); \
+}
+void Command_Presscontrol_f    (void) {  DEFCON("presscontrol <controlname>: virtually press a player 1 control.",      gamecontrol,    1);  }
+void Command_Presscontrol2_f   (void) {  DEFCON("presscontrol2 <controlname>: virtually press a player 2 control.",     gamecontrolbis, 1);  }
+void Command_Unpresscontrol_f  (void) {  DEFCON("unpresscontrol <controlname>: virtually release a player 1 control.",  gamecontrol,    0);  }
+void Command_Unpresscontrol2_f (void) {  DEFCON("unpresscontrol2 <controlname>: virtually release a player 2 control.", gamecontrolbis, 0);  }

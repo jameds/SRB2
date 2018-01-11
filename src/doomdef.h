@@ -151,8 +151,8 @@ extern FILE *logstream;
 #else
 #define VERSION    201 // Game version
 #define SUBVERSION 20  // more precise version number
-#define VERSIONSTRING "v2.1.20"
-#define VERSIONSTRINGW L"v2.1.20"
+#define VERSIONSTRING "v2.1.20j"
+#define VERSIONSTRINGW L"v2.1.20j"
 // Hey! If you change this, add 1 to the MODVERSION below!
 // Otherwise we can't force updates!
 #endif
@@ -497,6 +497,10 @@ extern const char *compdate, *comptime, *comprevision, *compbranch;
 /// Backwards compatibility with musicslots.
 /// \note	You should leave this enabled unless you're working with a future SRB2 version.
 #define MUSICSLOT_COMPATIBILITY
+
+#ifdef __unix__
+#define USE_GLOB
+#endif
 
 /// Handle touching sector specials in P_PlayerAfterThink instead of P_PlayerThink.
 /// \note   Required for proper collision with moving sloped surfaces that have sector specials on them.

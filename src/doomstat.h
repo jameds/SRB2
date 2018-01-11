@@ -119,6 +119,9 @@ extern INT32 consoleplayer;
 extern INT32 displayplayer;
 extern INT32 secondarydisplayplayer; // for splitscreen
 
+extern INT32 olderweapon;
+extern INT32 olderweapon2;
+
 // Maps of special importance
 extern INT16 spstage_start;
 extern INT16 sstage_start;

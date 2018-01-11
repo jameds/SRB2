@@ -109,6 +109,9 @@ INT32 consoleplayer; // player taking events and displaying
 INT32 displayplayer; // view being displayed
 INT32 secondarydisplayplayer; // for splitscreen
 
+INT32 olderweapon;
+INT32 olderweapon2;
+
 tic_t gametic;
 tic_t levelstarttic; // gametic at level start
 UINT32 totalrings; // for intermission
@@ -1675,6 +1678,7 @@ void G_DoLoadLevel(boolean resetplayer)
 
 static INT32 pausedelay = 0;
 static INT32 camtoggledelay, camtoggledelay2 = 0;
+static INT32 weaponlastdelay, weaponlastdelay2;
 
 //
 // G_Responder
@@ -1856,6 +1860,26 @@ boolean G_Responder(event_t *ev)
 					CV_SetValue(&cv_chasecam2, cv_chasecam2.value ? 0 : 1);
 				}
 			}
+
+			if (ev->data1 == gamecontrol[gc_weaponlast][0] ||
+				 ev->data1 == gamecontrol[gc_weaponlast][1])
+			{
+				if (! weaponlastdelay)
+				{
+					weaponlastdelay = NEWTICRATE / 7;
+					COM_ImmedExecute("lastweapon");
+				}
+			}
+			if (ev->data1 == gamecontrolbis[gc_weaponlast][0] ||
+				 ev->data1 == gamecontrolbis[gc_weaponlast][1])
+			{
+				if (! weaponlastdelay2)
+				{
+					weaponlastdelay2 = NEWTICRATE / 7;
+					COM_ImmedExecute("lastweapon2");
+				}
+			}
+
 			return true;
 
 		case ev_keyup:
@@ -2003,6 +2027,11 @@ void G_Ticker(boolean run)
 
 		if (camtoggledelay2)
 			camtoggledelay2--;
+
+		if (weaponlastdelay)
+			weaponlastdelay--;
+		if (weaponlastdelay2)
+			weaponlastdelay2--;
 	}
 }
 

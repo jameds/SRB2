@@ -12,6 +12,10 @@
 ///        commands are executed through the command buffer
 ///	       like console commands, other miscellaneous commands (at the end)
 
+#ifdef __unix__
+#define _XOPEN_SOURCE 500
+#endif
+
 #include "doomdef.h"
 
 #include "console.h"
@@ -50,6 +54,11 @@
 #define CV_RESTRICT CV_NETVAR
 #else
 #define CV_RESTRICT 0
+#endif
+
+#ifdef USE_GLOB
+#include <ftw.h>
+#include <fnmatch.h>
 #endif
 
 // ------
@@ -109,6 +118,9 @@ static void Command_StartMovie_f(void);
 static void Command_StopMovie_f(void);
 static void Command_Map_f(void);
 static void Command_ResetCamera_f(void);
+
+static void Command_LastWeapon_f  (void);
+static void Command_LastWeapon2_f (void);
 
 static void Command_Addfile(void);
 static void Command_ListWADS_f(void);
@@ -607,9 +619,16 @@ void D_RegisterClientCommands(void)
 	COM_AddCommand("playintro", Command_Playintro_f);
 
 	COM_AddCommand("resetcamera", Command_ResetCamera_f);
+	COM_AddCommand("lastweapon",  Command_LastWeapon_f);
+	COM_AddCommand("lastweapon2", Command_LastWeapon2_f);
 
 	COM_AddCommand("setcontrol", Command_Setcontrol_f);
 	COM_AddCommand("setcontrol2", Command_Setcontrol2_f);
+
+	COM_AddCommand("presscontrol",    Command_Presscontrol_f);
+	COM_AddCommand("presscontrol2",   Command_Presscontrol2_f);
+	COM_AddCommand("unpresscontrol",  Command_Unpresscontrol_f);
+	COM_AddCommand("unpresscontrol2", Command_Unpresscontrol2_f);
 
 	COM_AddCommand("screenshot", M_ScreenShot);
 	COM_AddCommand("startmovie", Command_StartMovie_f);
@@ -1413,6 +1432,18 @@ void D_SendPlayerConfig(void)
 static void Command_ResetCamera_f(void)
 {
 	P_ResetCamera(&players[displayplayer], &camera);
+}
+
+#define swap(x, y) { x ^= y; y ^= x; y ^= x; }
+static void Command_LastWeapon_f (void)
+{
+	swap(players[consoleplayer].currentweapon, olderweapon);
+	S_StartSound(NULL, sfx_wepchg);
+}
+static void Command_LastWeapon2_f (void)
+{
+	swap(players[secondarydisplayplayer].currentweapon, olderweapon2);
+	S_StartSound(NULL, sfx_wepchg);
 }
 
 // ========================================================================
@@ -2963,38 +2994,19 @@ static void Got_RunSOCcmd(UINT8 **cp, INT32 playernum)
 	G_SetGameModified(true);
 }
 
-/** Adds a pwad at runtime.
-  * Searches for sounds, maps, music, new images.
-  */
-static void Command_Addfile(void)
+static void addfile (const char *fn)
 {
-	const char *fn, *p;
+	const char *p;
 	XBOXSTATIC char buf[256];
 	char *buf_p = buf;
 	INT32 i;
-	int musiconly; // W_VerifyNMUSlumps isn't boolean
-
-	if (COM_Argc() != 2)
-	{
-		CONS_Printf(M_GetText("addfile <wadfile.wad>: load wad file\n"));
-		return;
-	}
-	else
-		fn = COM_Argv(1);
-
-	// Disallow non-printing characters and semicolons.
-	for (i = 0; fn[i] != '\0'; i++)
-		if (!isprint(fn[i]) || fn[i] == ';')
-			return;
-
-	musiconly = W_VerifyNMUSlumps(fn);
+	int musiconly = W_VerifyNMUSlumps(fn);
 
 	if (!musiconly)
 	{
 		// ... But only so long as they contain nothing more then music and sprites.
 		if (netgame && !(server || adminplayer == consoleplayer))
 		{
-			CONS_Printf(M_GetText("Only the server or a remote admin can use this.\n"));
 			return;
 		}
 		G_SetGameModified(multiplayer);
@@ -3071,6 +3083,99 @@ static void Command_Addfile(void)
 		SendNetXCmd(XD_REQADDFILE, buf, buf_p - buf);
 	else
 		SendNetXCmd(XD_ADDFILE, buf, buf_p - buf);
+}
+
+#ifdef USE_GLOB
+static const char *pattern;
+static int nodircheck;
+static int pathoffset;
+
+static inline int verifypath (const char *fn, const char *path)
+{
+	if (fnmatch(pattern, fn, 0) == 0)
+	{
+		addfile(path);
+		return 1;
+	}
+
+	return 0;
+}
+
+static int matchfile (const char *path, const struct stat *st,
+							 int type, struct FTW *ftwbuf)
+{
+	const char *fn = path + pathoffset;
+
+	if (*fn)
+	{
+		if (! verifypath(++fn, path))
+			if (nodircheck)
+			{
+				fn = strrchr(fn, '/');
+				if (fn)
+					verifypath(++fn, path);
+			}
+	}
+
+	return 0;
+}
+
+static inline void globfind (const char *pattern)
+{
+	const int maxparallel = 10;
+
+	pathoffset = strlen(srb2home);
+	nftw(srb2home, matchfile, maxparallel, 0);
+
+	pathoffset = strlen(srb2path);
+	nftw(srb2path, matchfile, maxparallel, 0);
+}
+#endif
+
+/** Adds a pwad at runtime.
+  * Searches for sounds, maps, music, new images.
+  */
+static void Command_Addfile (void)
+{
+	const char *fn;
+	INT32 i;
+
+	if (COM_Argc() != 2)
+	{
+		CONS_Printf(M_GetText("addfile <wadfile.wad>: load wad file\n"));
+		return;
+	}
+	else
+		fn = COM_Argv(1);
+
+	// Disallow non-printing characters and semicolons.
+	for (i = 0; fn[i] != '\0'; i++)
+		if (!isprint(fn[i]) || fn[i] == ';')
+			return;
+
+#ifdef USE_GLOB
+	pattern = fn;
+
+	nodircheck = ! strchr(pattern, '/');
+	if (! strpbrk(pattern, "?*["))  /* no wildcards */
+		addfile(fn);
+	else
+	{
+		UINT16 n_prewads = numwadfiles;
+
+		globfind(pattern);
+		if (numwadfiles > n_prewads+1)
+			CONS_Printf(M_GetText("%d files added.\n"), numwadfiles - n_prewads);
+		else
+		{
+			if (numwadfiles == n_prewads)
+				CONS_Alert(CONS_ERROR,
+							  M_GetText("No match for pattern '%s'\n"), pattern);
+		}
+	}
+#else
+	addfile(fn);
+#endif
 }
 
 #ifdef DELFILE
