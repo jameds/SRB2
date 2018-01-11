@@ -181,43 +181,55 @@ static void CONS_English_f(void)
 	CONS_Printf(M_GetText("%s keymap.\n"), M_GetText("English"));
 }
 
-static char *bindtable[NUMINPUTS];
+static char *bindtable[NUMINPUTS][2];
 
 static void CONS_Bind_f(void)
 {
 	size_t na;
 	INT32 key;
+	const char *keyname;
+	int bindup;
 
 	na = COM_Argc();
 
 	if (na != 2 && na != 3)
 	{
-		CONS_Printf(M_GetText("bind <keyname> [<command>]: create shortcut keys to command(s)\n"));
+		CONS_Printf(M_GetText("bind [-]<keyname> [<command>]: create shortcut keys to command(s)\n"));
 		CONS_Printf("\x82%s", M_GetText("Bind table :\n"));
 		na = 0;
 		for (key = 0; key < NUMINPUTS; key++)
-			if (bindtable[key])
+		{
+			if (bindtable[key][0])
 			{
-				CONS_Printf("%s : \"%s\"\n", G_KeynumToString(key), bindtable[key]);
+				CONS_Printf("%s : \"%s\"\n", G_KeynumToString(key), bindtable[key][0]);
 				na = 1;
 			}
+			if (bindtable[key][1])
+			{
+				putchar('-');
+				CONS_Printf("%s : \"%s\"\n", G_KeynumToString(key), bindtable[key][1]);
+				na = 1;
+			}
+		}
 		if (!na)
 			CONS_Printf(M_GetText("(empty)\n"));
 		return;
 	}
 
-	key = G_KeyStringtoNum(COM_Argv(1));
+	keyname = COM_Argv(1);
+	bindup = (keyname[0] == '-') ? 1 : 0;  // release key
+	key = G_KeyStringtoNum(&keyname[bindup]);
 	if (key <= 0 || key >= NUMINPUTS)
 	{
 		CONS_Alert(CONS_NOTICE, M_GetText("Invalid key name\n"));
 		return;
 	}
 
-	Z_Free(bindtable[key]);
-	bindtable[key] = NULL;
+	Z_Free(bindtable[key][bindup]);
+	bindtable[key][bindup] = NULL;
 
 	if (na == 3)
-		bindtable[key] = Z_StrDup(COM_Argv(2));
+		bindtable[key][bindup] = Z_StrDup(COM_Argv(2));
 }
 
 //======================================================================
@@ -334,7 +346,10 @@ void CON_Init(void)
 	INT32 i;
 
 	for (i = 0; i < NUMINPUTS; i++)
-		bindtable[i] = NULL;
+	{
+		bindtable[i][0] = NULL;
+		bindtable[i][1] = NULL;
+	}
 
 	// clear all lines
 	memset(con_buffer, 0, CON_BUFFERSIZE);
@@ -710,15 +725,28 @@ boolean CON_Responder(event_t *ev)
 	if (chat_on)
 		return false;
 
-	// let go keyup events, don't eat them
-	if (ev->type != ev_keydown && ev->type != ev_console)
-	{
-		if (ev->data1 == gamecontrol[gc_console][0] || ev->data1 == gamecontrol[gc_console][1])
-			consdown = false;
+	// let go of unrelated events, don't eat them
+	if (ev->type != ev_keydown && ev->type != ev_keyup && ev->type != ev_console)
 		return false;
-	}
 
 	key = ev->data1;
+
+	// bind release
+	if (ev->type == ev_keyup)
+	{
+		if (key == gamecontrol[gc_console][0] || key == gamecontrol[gc_console][1])
+		{
+			consdown = false;
+			return false;
+		}
+		if (!consoleready && key < NUMINPUTS)
+			if (bindtable[key][1])
+			{
+				COM_BufAddText(bindtable[key][1]);
+				COM_BufAddText("\n");
+			}
+		return false;  // keep event
+	}
 
 	// check for console toggle key
 	if (ev->type != ev_console)
@@ -726,7 +754,7 @@ boolean CON_Responder(event_t *ev)
 		if (modeattacking || metalrecording)
 			return false;
 
-		if (key == gamecontrol[gc_console][0] || key == gamecontrol[gc_console][1])
+		if (key == gamecontrol[gc_console][0])
 		{
 			if (consdown) // ignore repeat
 				return true;
@@ -738,9 +766,9 @@ boolean CON_Responder(event_t *ev)
 		// check other keys only if console prompt is active
 		if (!consoleready && key < NUMINPUTS) // metzgermeister: boundary check!!
 		{
-			if (bindtable[key])
+			if (bindtable[key][0])
 			{
-				COM_BufAddText(bindtable[key]);
+				COM_BufAddText(bindtable[key][0]);
 				COM_BufAddText("\n");
 				return true;
 			}
