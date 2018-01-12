@@ -109,7 +109,8 @@ UINT8 window_notinfocus = false;
 //
 //static INT32 demosequence;
 static const char *pagename = "MAP1PIC";
-static char *startupwadfiles[MAX_WADFILES];
+static char    *startupwadfiles[MAX_WADFILES];
+static boolean  replacemusicmask[MAX_WADFILES];
 
 boolean devparm = false; // started game with -devparm
 
@@ -742,7 +743,7 @@ void D_StartTitle(void)
 //
 // D_AddFile
 //
-static void D_AddFile(const char *file)
+static void D_AddFile(const char *file, boolean forcemus)
 {
 	size_t pnumwadfiles;
 	char *newfile;
@@ -757,7 +758,8 @@ static void D_AddFile(const char *file)
 	}
 	strcpy(newfile, file);
 
-	startupwadfiles[pnumwadfiles] = newfile;
+	startupwadfiles[pnumwadfiles]  = newfile;
+	replacemusicmask[pnumwadfiles] = forcemus;
 }
 
 static inline void D_CleanFile(void)
@@ -766,7 +768,8 @@ static inline void D_CleanFile(void)
 	for (pnumwadfiles = 0; startupwadfiles[pnumwadfiles]; pnumwadfiles++)
 	{
 		free(startupwadfiles[pnumwadfiles]);
-		startupwadfiles[pnumwadfiles] = NULL;
+		startupwadfiles[pnumwadfiles]  = NULL;
+		replacemusicmask[pnumwadfiles] = false;
 	}
 }
 
@@ -830,9 +833,9 @@ static void IdentifyVersion(void)
 
 	// Load the IWAD
 	if (srb2wad2 != NULL && FIL_ReadFileOK(srb2wad2))
-		D_AddFile(srb2wad2);
+		D_AddFile(srb2wad2, false);
 	else if (srb2wad1 != NULL && FIL_ReadFileOK(srb2wad1))
-		D_AddFile(srb2wad1);
+		D_AddFile(srb2wad1, false);
 	else
 		I_Error("SRB2.SRB/SRB2.WAD not found! Expected in %s, ss files: %s and %s\n", srb2waddir, srb2wad1, srb2wad2);
 
@@ -845,17 +848,17 @@ static void IdentifyVersion(void)
 	// checking in D_SRB2Main
 
 	// Add the maps
-	D_AddFile(va(pandf,srb2waddir,"zones.dta"));
+	D_AddFile(va(pandf,srb2waddir,"zones.dta"), false);
 
 	// Add the players
-	D_AddFile(va(pandf,srb2waddir, "player.dta"));
+	D_AddFile(va(pandf,srb2waddir, "player.dta"), false);
 
 	// Add the weapons
-	D_AddFile(va(pandf,srb2waddir,"rings.dta"));
+	D_AddFile(va(pandf,srb2waddir,"rings.dta"), false);
 
 #ifdef USE_PATCH_DTA
 	// Add our crappy patches to fix our bugs
-	D_AddFile(va(pandf,srb2waddir,"patch.dta"));
+	D_AddFile(va(pandf,srb2waddir,"patch.dta"), false);
 #endif
 
 #if !defined (HAVE_SDL) || defined (HAVE_MIXER)
@@ -868,7 +871,7 @@ static void IdentifyVersion(void)
 		const char *musicpath = va(pandf,srb2waddir,musicfile);
 		int ms = W_VerifyNMUSlumps(musicpath); // Don't forget the music!
 		if (ms == 1)
-			D_AddFile(musicpath);
+			D_AddFile(musicpath, false);
 		else if (ms == 0)
 			I_Error("File %s has been modified with non-music lumps",musicfile);
 	}
@@ -1082,7 +1085,7 @@ void D_SRB2Main(void)
 				{
 					if (!W_VerifyNMUSlumps(s))
 						G_SetGameModified(true);
-					D_AddFile(s);
+					D_AddFile(s, true);  // i.e. always overwrite
 				}
 			}
 		}
@@ -1133,7 +1136,7 @@ void D_SRB2Main(void)
 
 	// load wad, including the main wad file
 	CONS_Printf("W_InitMultipleFiles(): Adding IWAD and main PWADs.\n");
-	if (!W_InitMultipleFiles(startupwadfiles))
+	if (!W_InitMultipleFiles(startupwadfiles, replacemusicmask))
 #ifdef _DEBUG
 		CONS_Error("A WAD file was not found or not valid.\nCheck the log to see which ones.\n");
 #else

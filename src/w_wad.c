@@ -286,7 +286,7 @@ static void W_InvalidateLumpnumCache(void)
 //
 // Can now load dehacked files (.soc)
 //
-UINT16 W_LoadWadFile(const char *filename)
+UINT16 W_LoadWadFile(const char *filename, boolean forcemus)
 {
 	FILE *handle;
 	lumpinfo_t *lumpinfo;
@@ -486,6 +486,21 @@ UINT16 W_LoadWadFile(const char *filename)
 	wadfile->hwrcache = M_AATreeAlloc(AATREE_ZUSER);
 #endif
 
+	// force music replacement
+	if (forcemus)
+	{
+		for (i = 0; i < numlumps; i++)
+		{
+			const char *s = lumpinfo[i].name;
+			if ((s[0] == 'D' || s[0] == 'O') && s[1] == '_')
+			{
+				INT32 n = M_MapNumber(s[5], s[6]);
+				if (mapheaderinfo[n-1])
+					strcpy(mapheaderinfo[n-1]->musname, s+2);
+			}
+		}
+	}
+
 	//
 	// add the wadfile
 	//
@@ -542,7 +557,7 @@ void W_UnloadWadFile(UINT16 num)
   * \return 1 if all files were loaded, 0 if at least one was missing or
   *           invalid.
   */
-INT32 W_InitMultipleFiles(char **filenames)
+INT32 W_InitMultipleFiles(char **filenames, boolean *musicmasks)
 {
 	INT32 rc = 1;
 
@@ -550,10 +565,10 @@ INT32 W_InitMultipleFiles(char **filenames)
 	numwadfiles = 0;
 
 	// will be realloced as lumps are added
-	for (; *filenames; filenames++)
+	for (; *filenames; filenames++, musicmasks++)
 	{
 		//CONS_Debug(DBG_SETUP, "Loading %s\n", *filenames);
-		rc &= (W_LoadWadFile(*filenames) != INT16_MAX) ? 1 : 0;
+		rc &= (W_LoadWadFile(*filenames, *musicmasks) != INT16_MAX) ? 1 : 0;
 	}
 
 	if (!numwadfiles)

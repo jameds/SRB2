@@ -2992,7 +2992,7 @@ boolean P_AddWadFile(const char *wadfilename, char **firstmapname)
 	boolean texturechange = false;
 	boolean replacedcurrentmap = false;
 
-	if ((numlumps = W_LoadWadFile(wadfilename)) == INT16_MAX)
+	if ((numlumps = W_LoadWadFile(wadfilename, true)) == INT16_MAX)
 	{
 		CONS_Printf(M_GetText("Errors occured while loading %s; not added.\n"), wadfilename);
 		return false;
