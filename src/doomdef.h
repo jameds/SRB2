@@ -498,7 +498,7 @@ extern const char *compdate, *comptime, *comprevision, *compbranch;
 /// \note	You should leave this enabled unless you're working with a future SRB2 version.
 #define MUSICSLOT_COMPATIBILITY
 
-#ifdef __unix__
+#ifndef NOGLOB
 #define USE_GLOB
 #endif
 

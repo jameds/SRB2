@@ -12,11 +12,15 @@
 ///        commands are executed through the command buffer
 ///	       like console commands, other miscellaneous commands (at the end)
 
-#ifdef __unix__
-#define _XOPEN_SOURCE 500
-#endif
 
 #include "doomdef.h"
+
+#ifdef USE_GLOB
+#if defined (__unix__) || defined (__APPLE__)
+#include <ftw.h>
+#include <fnmatch.h>
+#endif
+#endif
 
 #include "console.h"
 #include "command.h"
@@ -54,11 +58,6 @@
 #define CV_RESTRICT CV_NETVAR
 #else
 #define CV_RESTRICT 0
-#endif
-
-#ifdef USE_GLOB
-#include <ftw.h>
-#include <fnmatch.h>
 #endif
 
 // ------
@@ -3086,35 +3085,47 @@ static void addfile (const char *fn)
 }
 
 #ifdef USE_GLOB
-static const char *pattern;
-static int nodircheck;
-static int pathoffset;
+static char pattern[256];
+static int  nodircheck;
 
+#if defined (__unix__) || defined (__APPLE__)
+static int pathoffset;
 static inline int verifypath (const char *fn, const char *path)
 {
-	if (fnmatch(pattern, fn, 0) == 0)
+	char *s;
+
+	s = malloc(strlen(fn) + 1);
+	if (s == NULL)
 	{
-		addfile(path);
-		return 1;
+		CONS_Alert(CONS_ERROR, "Failed to allocate memory for string'%s'.", fn);
+		return -1;
 	}
+
+	int i;
+	for (i = 0; fn[i]; ++i)
+		s[i] = tolower(fn[i]);
+	s[i] = 0;
+
+	if (fnmatch(pattern, s, 0) == 0)
+		addfile(path);
+
+	free(s);
 
 	return 0;
 }
 
-static int matchfile (const char *path, const struct stat *st,
-							 int type, struct FTW *ftwbuf)
+static int matchfile (const char *path, const struct stat *st, int type)
 {
-	const char *fn = path + pathoffset;
-
-	if (*fn)
+	if (type == FTW_F)
 	{
-		if (! verifypath(++fn, path))
-			if (nodircheck)
-			{
-				fn = strrchr(fn, '/');
-				if (fn)
-					verifypath(++fn, path);
-			}
+		if (nodircheck)
+		{
+			const char *p = strrchr(path, '/');
+			if (p)
+				return verifypath(++p, path);
+		}
+		else
+			return verifypath(path + pathoffset, path);
 	}
 
 	return 0;
@@ -3122,14 +3133,16 @@ static int matchfile (const char *path, const struct stat *st,
 
 static inline void globfind (const char *pattern)
 {
-	const int maxparallel = 10;
+	const int maxparallel = 25;
 
-	pathoffset = strlen(srb2home);
-	nftw(srb2home, matchfile, maxparallel, 0);
-
-	pathoffset = strlen(srb2path);
-	nftw(srb2path, matchfile, maxparallel, 0);
+	pathoffset = strlen(srb2home)+2;
+	if (ftw(srb2home, matchfile, maxparallel) == 0)
+	{
+		pathoffset = strlen(srb2path)+2;
+		ftw(srb2path, matchfile, maxparallel);
+	}
 }
+#endif
 #endif
 
 /** Adds a pwad at runtime.
@@ -3154,7 +3167,9 @@ static void Command_Addfile (void)
 			return;
 
 #ifdef USE_GLOB
-	pattern = fn;
+	for (i = 0; fn[i]; ++i)
+		pattern[i] = tolower(fn[i]);
+	pattern[i] = 0;
 
 	nodircheck = ! strchr(pattern, '/');
 	if (! strpbrk(pattern, "?*["))  /* no wildcards */
@@ -3169,8 +3184,7 @@ static void Command_Addfile (void)
 		else
 		{
 			if (numwadfiles == n_prewads)
-				CONS_Alert(CONS_ERROR,
-							  M_GetText("No match for pattern '%s'\n"), pattern);
+				CONS_Alert(CONS_ERROR, "No match for pattern '%s'\n", pattern);
 		}
 	}
 #else
