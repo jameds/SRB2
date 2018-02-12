@@ -126,6 +126,8 @@ static consvar_t cons_hudlines = {"con_hudlines", "5", CV_CALL|CV_SAVE, CV_Unsig
 static CV_PossibleValue_t speed_cons_t[] = {{0, "MIN"}, {64, "MAX"}, {0, NULL}};
 static consvar_t cons_speed = {"con_speed", "8", CV_SAVE, speed_cons_t, NULL, 0, NULL, NULL, 0, 0, NULL};
 
+static consvar_t cons_scroll = {"con_scroll", "Yes", CV_SAVE, CV_YesNo, NULL, 0, NULL, NULL, 0, 0, NULL};
+
 // percentage of screen height to use for console
 static consvar_t cons_height = {"con_height", "50", CV_SAVE, CV_Unsigned, NULL, 0, NULL, NULL, 0, 0, NULL};
 
@@ -385,6 +387,7 @@ void CON_Init(void)
 		CV_RegisterVar(&cons_msgtimeout);
 		CV_RegisterVar(&cons_hudlines);
 		CV_RegisterVar(&cons_speed);
+		CV_RegisterVar(&cons_scroll);
 		CV_RegisterVar(&cons_height);
 		CV_RegisterVar(&cons_backpic);
 		CV_RegisterVar(&cons_backcolor);
@@ -789,6 +792,18 @@ boolean CON_Responder(event_t *ev)
 	 || key == KEY_LALT || key == KEY_RALT)
 		return true;
 
+#ifdef HAVE_X11
+	if (shiftdown && key == KEY_INS)
+	{
+		const char *s = I_ReadXSelection("PRIMARY");
+		if (input_sel != input_cur)
+			CON_InputDelSelection();
+		CON_InputAddString(s);
+		completion[0] = 0;
+		return true;
+	}
+#endif
+
 	// ctrl modifier -- changes behavior, adds shortcuts
 	if (ctrldown)
 	{
@@ -833,33 +848,36 @@ boolean CON_Responder(event_t *ev)
 			return true;
 		}
 
-		if (key == 'x' || key == 'X')
+		if (altdown)
 		{
-			if (input_sel > input_cur)
-				I_ClipboardCopy(&inputlines[inputline][input_cur], input_sel-input_cur);
-			else
-				I_ClipboardCopy(&inputlines[inputline][input_sel], input_cur-input_sel);
-			CON_InputDelSelection();
-			completion[0] = 0;
-			return true;
-		}
-		else if (key == 'c' || key == 'C')
-		{
-			if (input_sel > input_cur)
-				I_ClipboardCopy(&inputlines[inputline][input_cur], input_sel-input_cur);
-			else
-				I_ClipboardCopy(&inputlines[inputline][input_sel], input_cur-input_sel);
-			return true;
-		}
-		else if (key == 'v' || key == 'V')
-		{
-			const char *paste = I_ClipboardPaste();
-			if (input_sel != input_cur)
+			if (key == 'x' || key == 'X')
+			{
+				if (input_sel > input_cur)
+					I_ClipboardCopy(&inputlines[inputline][input_cur], input_sel-input_cur);
+				else
+					I_ClipboardCopy(&inputlines[inputline][input_sel], input_cur-input_sel);
 				CON_InputDelSelection();
-			if (paste != NULL)
-				CON_InputAddString(paste);
-			completion[0] = 0;
-			return true;
+				completion[0] = 0;
+				return true;
+			}
+			else if (key == 'c' || key == 'C')
+			{
+				if (input_sel > input_cur)
+					I_ClipboardCopy(&inputlines[inputline][input_cur], input_sel-input_cur);
+				else
+					I_ClipboardCopy(&inputlines[inputline][input_sel], input_cur-input_sel);
+				return true;
+			}
+			else if (key == 'v' || key == 'V')
+			{
+				const char *paste = I_ClipboardPaste();
+				if (input_sel != input_cur)
+					CON_InputDelSelection();
+				if (paste != NULL)
+					CON_InputAddString(paste);
+				completion[0] = 0;
+				return true;
+			}
 		}
 
 		// Select all
@@ -867,7 +885,19 @@ boolean CON_Responder(event_t *ev)
 		{
 			input_sel = 0;
 			input_cur = input_len;
-			return true;
+		}
+
+		if (key == 'c')
+		{
+			CONS_Printf("\x86%c\x80%s^C\n", CON_PROMPTCHAR, inputlines[inputline]);
+			memset(inputlines[inputline], 0, input_len);
+			input_sel = input_cur = 0;
+		}
+		if (key == 'd')
+		{
+			CON_ClearHUD();
+			con_curlines = 0;
+			con_destlines = 0;
 		}
 
 		// ...why shouldn't it eat the key? if it doesn't, it just means you
@@ -1255,7 +1285,14 @@ void CONS_Printf(const char *fmt, ...)
 #endif
 
 	// make sure new text is visible
-	con_scrollup = 0;
+	if (cons_scroll.value || con_scrollup == 0)
+		con_scrollup = 0;
+	else
+	{
+		INT16 i;
+		for (i = 0; txt[i]; ++i)
+			if (txt[i] == '\n')  con_scrollup++;
+	}
 
 	// if not in display loop, force screen update
 	if (con_startup)
@@ -1462,7 +1499,7 @@ static void CON_DrawHudlines(void)
 		return;
 
 	if (chat_on)
-		y = charheight; // leave place for chat input in the first row of text
+		y = chat_edge; // leave place for chat input in the first row of text
 	else
 		y = 0;
 
