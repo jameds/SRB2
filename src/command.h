@@ -27,6 +27,7 @@ int COM_AddLuaCommand(const char *name);
 
 size_t COM_Argc(void);
 const char *COM_Argv(size_t arg); // if argv > argc, returns empty string
+const char *COM_ArgvEscaped(size_t arg); // escaped like C
 char *COM_Args(void);
 size_t COM_CheckParm(const char *check); // like M_CheckParm :)
 

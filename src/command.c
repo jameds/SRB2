@@ -292,6 +292,12 @@ const char *COM_Argv(size_t arg)
 		return com_null_string;
 	return com_argv[arg];
 }
+const char *COM_ArgvEscaped(size_t arg)
+{
+	if (arg >= com_argc || (signed)arg < 0)
+		return com_null_string;
+	return escaped(com_argv[arg], true);
+}
 
 /** Gets all console command arguments.
   *
@@ -564,7 +570,7 @@ static void COM_Echo_f(void)
 	size_t i;
 
 	for (i = 1; i < COM_Argc(); i++)
-		CONS_Printf("%s ", COM_Argv(i));
+		CONS_Printf("%s ", COM_ArgvEscaped(i));
 	CONS_Printf("\n");
 }
 

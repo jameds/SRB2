@@ -22,6 +22,7 @@
 
 #include "g_game.h"
 #include "g_input.h"
+#include "m_misc.h"
 
 #include "i_video.h"
 #include "i_system.h"
@@ -72,6 +73,7 @@ patch_t *cred_font[CRED_FONTSIZE];
 
 static player_t *plr;
 boolean chat_on; // entering a chat message?
+INT32 chat_edge;  // line after chat message
 static char w_chat[HU_MAXMSGLEN];
 static boolean headsupactive = false;
 boolean hu_showscores; // draw rankings
@@ -373,6 +375,9 @@ static void DoSayCommand(SINT8 target, size_t usedargs, UINT8 flags)
 		strlcat(msg, COM_Argv(ix + usedargs), msgspace);
 	}
 
+	if (!(flags & HU_CSAY))
+		escaped(msg, (server));
+
 	SendNetXCmd(XD_SAY, buf, strlen(msg) + 1 + msg-buf);
 }
 
@@ -494,6 +499,7 @@ static void Got_Saycmd(UINT8 **p, INT32 playernum)
 	}
 
 	//check for invalid characters (0x80 or above)
+#if 0
 	{
 		size_t i;
 		const size_t j = strlen(msg);
@@ -514,6 +520,7 @@ static void Got_Saycmd(UINT8 **p, INT32 playernum)
 			}
 		}
 	}
+#endif
 
 #ifdef HAVE_BLUA
 	if (LUAh_PlayerMsg(playernum, target, flags, msg))
@@ -723,6 +730,19 @@ static void HU_queueChatChar(char c)
 			else
 				buf[0] = 0; // target
 			buf[1] = 0; // flags
+
+			escaped(&buf[2], (server));
+			{
+				char *s = &buf[2];
+				while ((s = strchr(s, '\n')))
+				{
+					ci = min(strlen(s)+1, 256);
+					memmove(s+1, s, ci);
+					*s++ = '\n';  *s++ = '\t';
+					if (ci == 256)
+						break;
+				}
+			}
 			SendNetXCmd(XD_SAY, buf, 2 + strlen(&buf[2]) + 1);
 		}
 		return;
@@ -827,12 +847,14 @@ boolean HU_Responder(event_t *ev)
 //
 static void HU_DrawChat(void)
 {
-	INT32 t = 0, c = 0, y = HU_INPUTY;
+	INT32 t = 0, c = 0;
 	size_t i = 0;
 	const char *ntalk = "Say: ", *ttalk = "Say-Team: ";
 	const char *talk = ntalk;
 	INT32 charwidth = 8 * con_scalefactor; //SHORT(hu_font['A'-HU_FONTSTART]->width) * con_scalefactor;
 	INT32 charheight = 8 * con_scalefactor; //SHORT(hu_font['A'-HU_FONTSTART]->height) * con_scalefactor;
+
+	chat_edge = HU_INPUTY;
 
 	if (teamtalk)
 	{
@@ -855,7 +877,7 @@ static void HU_DrawChat(void)
 		else
 		{
 			//charwidth = SHORT(hu_font[talk[i]-HU_FONTSTART]->width) * con_scalefactor;
-			V_DrawCharacter(HU_INPUTX + c, y, talk[i++] | cv_constextsize.value | V_NOSCALESTART, !cv_allcaps.value);
+			V_DrawCharacter(HU_INPUTX + c, chat_edge, talk[i++] | cv_constextsize.value | V_NOSCALESTART, !cv_allcaps.value);
 		}
 		c += charwidth;
 	}
@@ -872,19 +894,21 @@ static void HU_DrawChat(void)
 		else
 		{
 			//charwidth = SHORT(hu_font[w_chat[i]-HU_FONTSTART]->width) * con_scalefactor;
-			V_DrawCharacter(HU_INPUTX + c, y, w_chat[i++] | cv_constextsize.value | V_NOSCALESTART | t, !cv_allcaps.value);
+			V_DrawCharacter(HU_INPUTX + c, chat_edge, w_chat[i++] | cv_constextsize.value | V_NOSCALESTART | t, !cv_allcaps.value);
 		}
 
 		c += charwidth;
 		if (c >= vid.width)
 		{
 			c = 0;
-			y += charheight;
+			chat_edge += charheight;
 		}
 	}
 
 	if (hu_tick < 4)
-		V_DrawCharacter(HU_INPUTX + c, y, '_' | cv_constextsize.value |V_NOSCALESTART|t, !cv_allcaps.value);
+		V_DrawCharacter(HU_INPUTX + c, chat_edge, '_' | cv_constextsize.value |V_NOSCALESTART|t, !cv_allcaps.value);
+
+	chat_edge += charheight;
 }
 
 

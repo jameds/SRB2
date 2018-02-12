@@ -1615,6 +1615,62 @@ INT32 axtoi(const char *hexStg)
 	return intValue;
 }
 
+/** Formats a string seasoned with backslash escape sequences.
+  * Useless sequences have been omitted.
+  */
+static inline int hi (int c)
+{
+	return (c >= '0') ? (c >= 'A') ? (c >= 'a') ? (c <= 'f') ? 10 + c-'a' : -1 :
+		(c <= 'F') ? 10 + c-'A' : -1 : (c <= '9') ? c-'0' : -1 : -1;
+}
+char * escaped (char *s, boolean xt)
+{
+	char *p, *ps;
+
+	p = ps = s;
+
+	do
+	{
+		if (*ps == '\\')
+			switch (*++ps)
+			{
+				case 'n':  *p = '\n';  break;
+				case 'r':  *p = '\r';  break;
+				case 't':  *p = '\t';  break;
+				default:
+					if (xt)  // extended codes are not chat safe
+					{
+						if (*ps == 'x')
+						{
+							*p = hi(*++ps);
+							if (hi(*(ps+1)) != -1)
+								*p = (*p<<4) + hi(*++ps);
+							goto r;
+						}
+						else if (isdigit(*ps))
+						{
+							*p = *ps-'0';
+							if (isdigit(*(ps+1)))
+							{
+								*p = (*p*10) + *++ps-'0';
+								if (isdigit(*(ps+1)))
+									*p = (*p*10) + *++ps-'0';
+							}
+							goto r;
+						}
+					}
+					*p = *ps;
+			}
+		else
+			*p = *ps;
+	r:
+		++p;
+	}
+	while (*ps++) ;
+
+	return s;
+}
+
 /** Token parser for TEXTURES, ANIMDEFS, and potentially other lumps later down the line.
   * Was originally R_GetTexturesToken when I was coding up the TEXTURES parser, until I realized I needed it for ANIMDEFS too.
   * Parses up to the next whitespace character or comma. When finding the start of the next token, whitespace is skipped.

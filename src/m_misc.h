@@ -75,6 +75,8 @@ void M_SaveConfig(const char *filename);
 
 INT32 axtoi(const char *hexStg);
 
+char * escaped (char *s, boolean xt);  // C-style escape sequences
+
 const char *GetRevisionString(void);
 
 // Vector/matrix math

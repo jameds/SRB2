@@ -74,6 +74,7 @@ extern patch_t *tallminus;
 
 // set true when entering a chat message
 extern boolean chat_on;
+extern INT32 chat_edge;  // bottom of chat window
 
 // set true whenever the tab rankings are being shown for any reason
 extern boolean hu_showscores;
