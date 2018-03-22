@@ -98,6 +98,7 @@ static size_t input_len; // length of current line, used to bound cursor and suc
 // protos.
 static void CON_InputInit(void);
 static void CON_RecalcSize(void);
+static void CON_ChangeHeight(void);
 
 static void CONS_hudlines_Change(void);
 static void CONS_backcolor_Change(void);
@@ -125,6 +126,8 @@ static consvar_t cons_hudlines = {"con_hudlines", "5", CV_CALL|CV_SAVE, CV_Unsig
 // (con_speed needs a limit, apparently)
 static CV_PossibleValue_t speed_cons_t[] = {{0, "MIN"}, {64, "MAX"}, {0, NULL}};
 static consvar_t cons_speed = {"con_speed", "8", CV_SAVE, speed_cons_t, NULL, 0, NULL, NULL, 0, 0, NULL};
+
+static consvar_t cons_scroll = {"con_scroll", "Yes", CV_SAVE, CV_YesNo, NULL, 0, NULL, NULL, 0, 0, NULL};
 
 // percentage of screen height to use for console
 static consvar_t cons_height = {"con_height", "50", CV_SAVE, CV_Unsigned, NULL, 0, NULL, NULL, 0, 0, NULL};
@@ -181,43 +184,55 @@ static void CONS_English_f(void)
 	CONS_Printf(M_GetText("%s keymap.\n"), M_GetText("English"));
 }
 
-static char *bindtable[NUMINPUTS];
+static char *bindtable[NUMINPUTS][2];
 
 static void CONS_Bind_f(void)
 {
 	size_t na;
 	INT32 key;
+	const char *keyname;
+	int bindup;
 
 	na = COM_Argc();
 
 	if (na != 2 && na != 3)
 	{
-		CONS_Printf(M_GetText("bind <keyname> [<command>]: create shortcut keys to command(s)\n"));
+		CONS_Printf(M_GetText("bind [-]<keyname> [<command>]: create shortcut keys to command(s)\n"));
 		CONS_Printf("\x82%s", M_GetText("Bind table :\n"));
 		na = 0;
 		for (key = 0; key < NUMINPUTS; key++)
-			if (bindtable[key])
+		{
+			if (bindtable[key][0])
 			{
-				CONS_Printf("%s : \"%s\"\n", G_KeynumToString(key), bindtable[key]);
+				CONS_Printf("%s : \"%s\"\n", G_KeynumToString(key), bindtable[key][0]);
 				na = 1;
 			}
+			if (bindtable[key][1])
+			{
+				putchar('-');
+				CONS_Printf("%s : \"%s\"\n", G_KeynumToString(key), bindtable[key][1]);
+				na = 1;
+			}
+		}
 		if (!na)
 			CONS_Printf(M_GetText("(empty)\n"));
 		return;
 	}
 
-	key = G_KeyStringtoNum(COM_Argv(1));
+	keyname = COM_Argv(1);
+	bindup = (keyname[0] == '-') ? 1 : 0;  // release key
+	key = G_KeyStringtoNum(&keyname[bindup]);
 	if (key <= 0 || key >= NUMINPUTS)
 	{
 		CONS_Alert(CONS_NOTICE, M_GetText("Invalid key name\n"));
 		return;
 	}
 
-	Z_Free(bindtable[key]);
-	bindtable[key] = NULL;
+	Z_Free(bindtable[key][bindup]);
+	bindtable[key][bindup] = NULL;
 
 	if (na == 3)
-		bindtable[key] = Z_StrDup(COM_Argv(2));
+		bindtable[key][bindup] = Z_StrDup(COM_Argv(2));
 }
 
 //======================================================================
@@ -334,7 +349,10 @@ void CON_Init(void)
 	INT32 i;
 
 	for (i = 0; i < NUMINPUTS; i++)
-		bindtable[i] = NULL;
+	{
+		bindtable[i][0] = NULL;
+		bindtable[i][1] = NULL;
+	}
 
 	// clear all lines
 	memset(con_buffer, 0, CON_BUFFERSIZE);
@@ -370,6 +388,7 @@ void CON_Init(void)
 		CV_RegisterVar(&cons_msgtimeout);
 		CV_RegisterVar(&cons_hudlines);
 		CV_RegisterVar(&cons_speed);
+		CV_RegisterVar(&cons_scroll);
 		CV_RegisterVar(&cons_height);
 		CV_RegisterVar(&cons_backpic);
 		CV_RegisterVar(&cons_backcolor);
@@ -434,6 +453,9 @@ static void CON_RecalcSize(void)
 		con_destlines = vid.height;
 	}
 
+	CON_ChangeHeight();
+	con_curlines = con_destlines;
+
 	// check for change of video width
 	if (conw == con_width)
 		return; // didn't change
@@ -481,6 +503,20 @@ static void CON_RecalcSize(void)
 
 	Z_Free(string);
 	Z_Free(tmp_buffer);
+}
+
+static void CON_ChangeHeight(void)
+{
+	INT32 minheight = 20 * con_scalefactor;	// 20 = 8+8+4
+
+	// toggle console in
+	con_destlines = (cons_height.value*vid.height)/100;
+	if (con_destlines < minheight)
+		con_destlines = minheight;
+	else if (con_destlines > vid.height)
+		con_destlines = vid.height;
+
+	con_destlines &= ~0x3; // multiple of text row height
 }
 
 // Handles Console moves in/out of screen (per frame)
@@ -571,16 +607,7 @@ void CON_Ticker(void)
 			CON_ClearHUD();
 		}
 		else
-		{
-			// toggle console in
-			con_destlines = (cons_height.value*vid.height)/100;
-			if (con_destlines < minheight)
-				con_destlines = minheight;
-			else if (con_destlines > vid.height)
-				con_destlines = vid.height;
-
-			con_destlines &= ~0x3; // multiple of text row height
-		}
+			CON_ChangeHeight();
 	}
 
 	// console movement
@@ -710,15 +737,28 @@ boolean CON_Responder(event_t *ev)
 	if (chat_on)
 		return false;
 
-	// let go keyup events, don't eat them
-	if (ev->type != ev_keydown && ev->type != ev_console)
-	{
-		if (ev->data1 == gamecontrol[gc_console][0] || ev->data1 == gamecontrol[gc_console][1])
-			consdown = false;
+	// let go of unrelated events, don't eat them
+	if (ev->type != ev_keydown && ev->type != ev_keyup && ev->type != ev_console)
 		return false;
-	}
 
 	key = ev->data1;
+
+	// bind release
+	if (ev->type == ev_keyup)
+	{
+		if (key == gamecontrol[gc_console][0] || key == gamecontrol[gc_console][1])
+		{
+			consdown = false;
+			return false;
+		}
+		if (!consoleready && key < NUMINPUTS)
+			if (bindtable[key][1])
+			{
+				COM_BufAddText(bindtable[key][1]);
+				COM_BufAddText("\n");
+			}
+		return false;  // keep event
+	}
 
 	// check for console toggle key
 	if (ev->type != ev_console)
@@ -726,7 +766,7 @@ boolean CON_Responder(event_t *ev)
 		if (modeattacking || metalrecording)
 			return false;
 
-		if (key == gamecontrol[gc_console][0] || key == gamecontrol[gc_console][1])
+		if (key == gamecontrol[gc_console][0])
 		{
 			if (consdown) // ignore repeat
 				return true;
@@ -738,9 +778,9 @@ boolean CON_Responder(event_t *ev)
 		// check other keys only if console prompt is active
 		if (!consoleready && key < NUMINPUTS) // metzgermeister: boundary check!!
 		{
-			if (bindtable[key])
+			if (bindtable[key][0])
 			{
-				COM_BufAddText(bindtable[key]);
+				COM_BufAddText(bindtable[key][0]);
 				COM_BufAddText("\n");
 				return true;
 			}
@@ -760,6 +800,18 @@ boolean CON_Responder(event_t *ev)
 	 || key == KEY_LCTRL || key == KEY_RCTRL
 	 || key == KEY_LALT || key == KEY_RALT)
 		return true;
+
+#ifdef HAVE_X11
+	if (shiftdown && key == KEY_INS)
+	{
+		const char *s = I_ReadXSelection("PRIMARY");
+		if (input_sel != input_cur)
+			CON_InputDelSelection();
+		CON_InputAddString(s);
+		completion[0] = 0;
+		return true;
+	}
+#endif
 
 	// ctrl modifier -- changes behavior, adds shortcuts
 	if (ctrldown)
@@ -805,33 +857,36 @@ boolean CON_Responder(event_t *ev)
 			return true;
 		}
 
-		if (key == 'x' || key == 'X')
+		if (altdown)
 		{
-			if (input_sel > input_cur)
-				I_ClipboardCopy(&inputlines[inputline][input_cur], input_sel-input_cur);
-			else
-				I_ClipboardCopy(&inputlines[inputline][input_sel], input_cur-input_sel);
-			CON_InputDelSelection();
-			completion[0] = 0;
-			return true;
-		}
-		else if (key == 'c' || key == 'C')
-		{
-			if (input_sel > input_cur)
-				I_ClipboardCopy(&inputlines[inputline][input_cur], input_sel-input_cur);
-			else
-				I_ClipboardCopy(&inputlines[inputline][input_sel], input_cur-input_sel);
-			return true;
-		}
-		else if (key == 'v' || key == 'V')
-		{
-			const char *paste = I_ClipboardPaste();
-			if (input_sel != input_cur)
+			if (key == 'x' || key == 'X')
+			{
+				if (input_sel > input_cur)
+					I_ClipboardCopy(&inputlines[inputline][input_cur], input_sel-input_cur);
+				else
+					I_ClipboardCopy(&inputlines[inputline][input_sel], input_cur-input_sel);
 				CON_InputDelSelection();
-			if (paste != NULL)
-				CON_InputAddString(paste);
-			completion[0] = 0;
-			return true;
+				completion[0] = 0;
+				return true;
+			}
+			else if (key == 'c' || key == 'C')
+			{
+				if (input_sel > input_cur)
+					I_ClipboardCopy(&inputlines[inputline][input_cur], input_sel-input_cur);
+				else
+					I_ClipboardCopy(&inputlines[inputline][input_sel], input_cur-input_sel);
+				return true;
+			}
+			else if (key == 'v' || key == 'V')
+			{
+				const char *paste = I_ClipboardPaste();
+				if (input_sel != input_cur)
+					CON_InputDelSelection();
+				if (paste != NULL)
+					CON_InputAddString(paste);
+				completion[0] = 0;
+				return true;
+			}
 		}
 
 		// Select all
@@ -839,7 +894,19 @@ boolean CON_Responder(event_t *ev)
 		{
 			input_sel = 0;
 			input_cur = input_len;
-			return true;
+		}
+
+		if (key == 'c')
+		{
+			CONS_Printf("\x86%c\x80%s^C\n", CON_PROMPTCHAR, inputlines[inputline]);
+			memset(inputlines[inputline], 0, input_len);
+			input_sel = input_cur = 0;
+		}
+		if (key == 'd')
+		{
+			CON_ClearHUD();
+			con_curlines = 0;
+			con_destlines = 0;
 		}
 
 		// ...why shouldn't it eat the key? if it doesn't, it just means you
@@ -1078,6 +1145,7 @@ static void CON_Print(char *msg)
 {
 	size_t l;
 	INT32 controlchars = 0; // for color changing
+	char color = '\x80';  // keep color across lines
 
 	if (msg == NULL)
 		return;
@@ -1103,7 +1171,7 @@ static void CON_Print(char *msg)
 		{
 			if (*msg & 0x80)
 			{
-				con_line[con_cx++] = *(msg++);
+				color = con_line[con_cx++] = *(msg++);
 				controlchars++;
 				continue;
 			}
@@ -1111,12 +1179,14 @@ static void CON_Print(char *msg)
 			{
 				con_cy--;
 				CON_Linefeed();
+				color = '\x80';
 				controlchars = 0;
 			}
 			else if (*msg == '\n') // linefeed
 			{
 				CON_Linefeed();
-				controlchars = 0;
+				con_line[con_cx++] = color;
+				controlchars = 1;
 			}
 			else if (*msg == ' ') // space
 			{
@@ -1124,7 +1194,8 @@ static void CON_Print(char *msg)
 				if (con_cx - controlchars >= con_width-11)
 				{
 					CON_Linefeed();
-					controlchars = 0;
+					con_line[con_cx++] = color;
+					controlchars = 1;
 				}
 			}
 			else if (*msg == '\t')
@@ -1139,7 +1210,8 @@ static void CON_Print(char *msg)
 				if (con_cx - controlchars >= con_width-11)
 				{
 					CON_Linefeed();
-					controlchars = 0;
+					con_line[con_cx++] = color;
+					controlchars = 1;
 				}
 			}
 			msg++;
@@ -1156,7 +1228,8 @@ static void CON_Print(char *msg)
 		if ((con_cx - controlchars) + l > con_width-11)
 		{
 			CON_Linefeed();
-			controlchars = 0;
+			con_line[con_cx++] = color;
+			controlchars = 1;
 		}
 
 		// a word at a time
@@ -1227,7 +1300,14 @@ void CONS_Printf(const char *fmt, ...)
 #endif
 
 	// make sure new text is visible
-	con_scrollup = 0;
+	if (cons_scroll.value || con_scrollup == 0)
+		con_scrollup = 0;
+	else
+	{
+		INT16 i;
+		for (i = 0; txt[i]; ++i)
+			if (txt[i] == '\n')  con_scrollup++;
+	}
 
 	// if not in display loop, force screen update
 	if (con_startup)
@@ -1434,7 +1514,7 @@ static void CON_DrawHudlines(void)
 		return;
 
 	if (chat_on)
-		y = charheight; // leave place for chat input in the first row of text
+		y = chat_edge; // leave place for chat input in the first row of text
 	else
 		y = 0;
 
@@ -1583,8 +1663,7 @@ static void CON_DrawConsole(void)
 	i = con_cy - con_scrollup;
 
 	// skip the last empty line due to the cursor being at the start of a new line
-	if (!con_scrollup && !con_cx)
-		i--;
+	i--;
 
 	i -= (con_curlines - minheight) / charheight;
 

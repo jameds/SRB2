@@ -88,6 +88,7 @@ typedef enum
 	gc_straferight,
 	gc_turnleft,
 	gc_turnright,
+	gc_weaponlast,
 	gc_weaponnext,
 	gc_weaponprev,
 	gc_wepslot1,
@@ -156,6 +157,12 @@ INT32 G_KeyStringtoNum(const char *keystr);
 void G_ClearControlKeys(INT32 (*setupcontrols)[2], INT32 control);
 void Command_Setcontrol_f(void);
 void Command_Setcontrol2_f(void);
+
+void Command_Presscontrol_f    (void);
+void Command_Presscontrol2_f   (void);
+void Command_Unpresscontrol_f  (void);
+void Command_Unpresscontrol2_f (void);
+
 void G_Controldefault(void);
 void G_SaveKeySetting(FILE *f);
 void G_CheckDoubleUsage(INT32 keynum);

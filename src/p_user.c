@@ -9337,7 +9337,14 @@ void P_PlayerAfterThink(player_t *player)
 		player->currentweapon = 0;
 
 	if (P_IsLocalPlayer(player) && (player->pflags & PF_WPNDOWN) && player->currentweapon != oldweapon)
+	{
+		if (player == &players[consoleplayer])
+			olderweapon = oldweapon;
+		else
+			olderweapon2 = oldweapon;
+
 		S_StartSound(NULL, sfx_wepchg);
+	}
 
 	if (player->pflags & PF_GLIDING)
 	{

@@ -342,6 +342,11 @@ LIBS+=$(LIBGME_LDFLAGS)
 CFLAGS+=$(LIBGME_CFLAGS)
 endif
 
+ifdef X11
+OPTS+=-DHAVE_X11
+LIBS+=-lX11
+endif
+
 ifdef STATIC
 LIBS:=-static $(LIBS)
 endif

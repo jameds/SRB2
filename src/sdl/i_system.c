@@ -124,6 +124,13 @@ typedef LPVOID (WINAPI *p_MapViewOfFile) (HANDLE, DWORD, DWORD, DWORD, SIZE_T);
 #include "macosx/mac_resources.h"
 #endif
 
+#ifdef HAVE_X11
+#include <X11/Xlib.h>
+
+static Display *Xdisplay;
+static Window   Xwindow;
+#endif
+
 // Locations for searching the srb2.srb
 #if defined (__unix__) || defined(__APPLE__) || defined (UNIXCOMMON)
 #define DEFAULTWADLOCATION1 "/usr/local/share/games/SRB2"
@@ -2088,6 +2095,21 @@ INT32 I_StartupSystem(void)
 #ifndef NOMUMBLE
 	I_SetupMumble();
 #endif
+
+#ifdef HAVE_X11
+	char *dys;
+	dys = XDisplayName(0);
+	Xdisplay = XOpenDisplay(dys);
+	if (Xdisplay)
+	{
+		unsigned long color = BlackPixel(Xdisplay, DefaultScreen(Xdisplay));
+		Xwindow = XCreateSimpleWindow(Xdisplay, DefaultRootWindow(Xdisplay),
+				0, 0, 1, 1, 0, color, color);
+	}
+	else
+		I_OutputMsg("Failed to establish a connection with display '%s'\n", dys);
+#endif
+
 	return 0;
 }
 
@@ -2125,6 +2147,11 @@ void I_Quit(void)
 	I_ShutdownGraphics();
 	I_ShutdownInput();
 	I_ShutdownSystem();
+#ifdef HAVE_X11
+	XDestroyWindow(Xdisplay, Xwindow);
+	if (Xdisplay)
+		XCloseDisplay(Xdisplay);
+#endif
 	SDL_Quit();
 	/* if option -noendtxt is set, don't print the text */
 	if (!M_CheckParm("-noendtxt") && W_CheckNumForName("ENDOOM") != LUMPERROR)
@@ -2487,6 +2514,43 @@ const char *I_ClipboardPaste(void)
 	}
 	return (const char *)&clipboard_modified;
 }
+
+#ifdef HAVE_X11
+/* Don't ask me how it works.  I just copied this off of Stack Overflow and
+	revised a tiny bit by looking at Tronche's X documentation.  -- james */
+const char * I_ReadXSelection (const char *ssel)
+{
+	static char s[256];
+	char *xs;
+	unsigned long n, nexcess;
+	int form;
+	Atom bufid, toid, propid;
+	XEvent event;
+
+	bufid  = XInternAtom(Xdisplay, ssel,        False);
+	toid   = XInternAtom(Xdisplay, "STRING",    False);
+	propid = XInternAtom(Xdisplay, "XSEL_DATA", False);
+
+	XConvertSelection(Xdisplay, bufid, toid, propid, Xwindow, CurrentTime);
+
+	do
+		XNextEvent(Xdisplay, &event);
+	while (event.type != SelectionNotify ||
+			 event.xselection.selection != bufid) ;
+
+	if (event.xselection.property)
+	{
+		XGetWindowProperty(Xdisplay, Xwindow, propid, 0, 255, False, toid,
+				&toid, &form, &n, &nexcess, (unsigned char **) &xs);
+		memcpy(s, xs, n);
+		s[n] = 0;
+		XFree(xs);
+	}
+
+	return (const char *) &s;
+}
+#endif
+
 
 /**	\brief	The isWadPathOk function
 

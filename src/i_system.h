@@ -304,6 +304,10 @@ INT32 I_ClipboardCopy(const char *data, size_t size);
 */
 const char *I_ClipboardPaste(void);
 
+#ifdef HAVE_X11
+const char *I_ReadXSelection  (const char *ssel);
+#endif
+
 void I_RegisterSysCommands(void);
 
 #endif
