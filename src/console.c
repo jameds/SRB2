@@ -100,6 +100,7 @@ static void CON_InputInit(void);
 static void CON_RecalcSize(void);
 static void CON_ChangeHeight(void);
 
+static void CONS_height_Change(void);
 static void CONS_hudlines_Change(void);
 static void CONS_backcolor_Change(void);
 static void CON_DrawBackpic(patch_t *pic, INT32 startx, INT32 destwidth);
@@ -130,7 +131,7 @@ static consvar_t cons_speed = {"con_speed", "8", CV_SAVE, speed_cons_t, NULL, 0,
 static consvar_t cons_scroll = {"con_scroll", "Yes", CV_SAVE, CV_YesNo, NULL, 0, NULL, NULL, 0, 0, NULL};
 
 // percentage of screen height to use for console
-static consvar_t cons_height = {"con_height", "50", CV_SAVE, CV_Unsigned, NULL, 0, NULL, NULL, 0, 0, NULL};
+static consvar_t cons_height = {"con_height", "50", CV_SAVE|CV_CALL, CV_Unsigned, CONS_height_Change, 0, NULL, NULL, 0, 0, NULL};
 
 static CV_PossibleValue_t backpic_cons_t[] = {{0, "translucent"}, {1, "picture"}, {0, NULL}};
 // whether to use console background picture, or translucent mode
@@ -453,7 +454,7 @@ static void CON_RecalcSize(void)
 		con_destlines = vid.height;
 	}
 
-	CON_ChangeHeight();
+	CONS_height_Change();
 	con_curlines = con_destlines;
 
 	// check for change of video width
@@ -517,6 +518,12 @@ static void CON_ChangeHeight(void)
 		con_destlines = vid.height;
 
 	con_destlines &= ~0x3; // multiple of text row height
+}
+
+static void CONS_height_Change(void)
+{
+	if (con_destlines > 0)
+		CON_ChangeHeight();
 }
 
 // Handles Console moves in/out of screen (per frame)
