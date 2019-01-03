@@ -473,13 +473,25 @@ static void VID_Command_Mode_f (void)
 {
 	INT32 modenum;
 
-	if (COM_Argc()!= 2)
+	if (COM_Argc()< 2)
 	{
 		CONS_Printf(M_GetText("vid_mode <modenum> : set video mode, current video mode %i\n"), vid.modenum);
 		return;
 	}
 
 	modenum = atoi(COM_Argv(1));
+
+	if (modenum == -2)
+	{
+		if (COM_Argc() != 4)
+		{
+			CONS_Printf("vid_mode -2 <height> <width> : set video resolution, current resolution %dx%d\n", vid.width, vid.height);
+			return;
+		}
+
+		vid.height = atoi(COM_Argv(2));
+		vid.width = atoi(COM_Argv(3));
+	}
 
 	if (modenum >= VID_NumModes())
 		CONS_Printf(M_GetText("Video mode not present\n"));
@@ -1256,6 +1268,10 @@ INT32 VID_SetMode(INT32 modeNum)
 		vid.width = windowedModes[modeNum][0];
 		vid.height = windowedModes[modeNum][1];
 		vid.modenum = modeNum;
+	}
+	else if (modeNum == -2)
+	{
+		vid.modenum = -2;
 	}
 	else
 	{
