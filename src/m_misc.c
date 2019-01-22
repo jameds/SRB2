@@ -1324,6 +1324,9 @@ void M_StopMovie(void)
 #endif
 			}
 
+#ifdef HAVE_INDEF_APNG
+			apng_destroy_info_struct(apng_ptr, &apng_ainfo_ptr);
+#endif
 			png_destroy_write_struct(&apng_ptr, &apng_info_ptr);
 
 			fclose(apng_FILE);
