@@ -93,7 +93,10 @@ typedef off_t off64_t;
  #ifdef PNG_WRITE_SUPPORTED
   #define USE_PNG // Only actually use PNG if write is supported.
   #if defined (PNG_WRITE_APNG_SUPPORTED) //|| !defined(PNG_STATIC)
-   #if (PNG_LIBPNG_VER_MAJOR) == 1 && (PNG_LIBPNG_VER_MINOR <= 4) // Supposedly, the current APNG code can't work on newer versions as is
+   #ifdef HAVE_INDEF_APNG
+    #include "apng.h"
+    #define USE_APNG
+   #elif (PNG_LIBPNG_VER_MAJOR) == 1 && (PNG_LIBPNG_VER_MINOR <= 4) // Supposedly, the current APNG code can't work on newer versions as is
     #define USE_APNG
    #endif
   #endif
@@ -655,7 +658,11 @@ static void PNG_warn(png_structp PNG, png_const_charp pngtext)
 	CONS_Debug(DBG_RENDER, "libpng warning at %p: %s", PNG, pngtext);
 }
 
-static void M_PNGhdr(png_structp png_ptr, png_infop png_info_ptr, PNG_CONST png_uint_32 width, PNG_CONST png_uint_32 height, PNG_CONST png_byte *palette)
+static void M_PNGhdr(png_structp png_ptr, png_infop png_info_ptr,
+#ifdef HAVE_INDEF_APNG
+		apng_infop png_ainfo_ptr,
+#endif
+		PNG_CONST png_uint_32 width, PNG_CONST png_uint_32 height, PNG_CONST png_byte *palette)
 {
 	const png_byte png_interlace = PNG_INTERLACE_NONE; //PNG_INTERLACE_ADAM7
 	if (palette)
@@ -671,6 +678,11 @@ static void M_PNGhdr(png_structp png_ptr, png_infop png_info_ptr, PNG_CONST png_
 		}
 		png_set_IHDR(png_ptr, png_info_ptr, width, height, 8, PNG_COLOR_TYPE_PALETTE,
 		 png_interlace, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+#ifdef HAVE_INDEF_APNG
+		if (png_ainfo_ptr)
+			apng_write_info_before_PLTE(png_ptr, png_info_ptr, png_ainfo_ptr);
+		else
+#endif
 		png_write_info_before_PLTE(png_ptr, png_info_ptr);
 		png_set_PLTE(png_ptr, png_info_ptr, png_PLTE, 256);
 		png_free(png_ptr, (png_voidp)png_PLTE); // safe in libpng-1.2.1+
@@ -681,6 +693,11 @@ static void M_PNGhdr(png_structp png_ptr, png_infop png_info_ptr, PNG_CONST png_
 	{
 		png_set_IHDR(png_ptr, png_info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB,
 		 png_interlace, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+#ifdef HAVE_INDEF_APNG
+		if (png_ainfo_ptr)
+			apng_write_info_before_PLTE(png_ptr, png_info_ptr, png_ainfo_ptr);
+		else
+#endif
 		png_write_info_before_PLTE(png_ptr, png_info_ptr);
 		png_set_compression_strategy(png_ptr, Z_FILTERED);
 	}
@@ -794,11 +811,18 @@ static inline void M_PNGImage(png_structp png_ptr, png_infop png_info_ptr, PNG_C
 #ifdef USE_APNG
 static png_structp apng_ptr = NULL;
 static png_infop   apng_info_ptr = NULL;
+#ifdef HAVE_INDEF_APNG
+static apng_infop  apng_ainfo_ptr;
+#endif
 static png_FILE_p  apng_FILE = NULL;
 static png_uint_32 apng_frames = 0;
+#ifndef HAVE_INDEF_APNG
 static png_byte    acTL_cn[5] = { 97,  99,  84,  76, '\0'};
+#endif
 #ifdef PNG_STATIC // Win32 build have static libpng
+#ifndef HAVE_INDEF_APNG
 #define apng_set_acTL png_set_acTL
+#endif
 #define apng_write_frame_head png_write_frame_head
 #define apng_write_frame_tail png_write_frame_tail
 #else // outside libpng may not have apng support
@@ -837,18 +861,34 @@ static png_byte    acTL_cn[5] = { 97,  99,  84,  76, '\0'};
 #endif
 
 #endif
+#ifndef HAVE_INDEF_APNG
 typedef PNG_EXPORT(png_uint_32, (*P_png_set_acTL)) PNGARG((png_structp png_ptr,
    png_infop info_ptr, png_uint_32 num_frames, png_uint_32 num_plays));
-typedef PNG_EXPORT (void, (*P_png_write_frame_head)) PNGARG((png_structp png_ptr,
+#endif
+typedef
+#ifndef HAVE_INDEF_APNG
+PNG_EXPORT (void, (*P_png_write_frame_head))
+#else
+void (*P_png_write_frame_head)
+#endif
+	PNGARG((png_structp png_ptr,
    png_infop info_ptr, png_bytepp row_pointers,
    png_uint_32 width, png_uint_32 height,
    png_uint_32 x_offset, png_uint_32 y_offset,
    png_uint_16 delay_num, png_uint_16 delay_den, png_byte dispose_op,
    png_byte blend_op));
 
-typedef PNG_EXPORT (void, (*P_png_write_frame_tail)) PNGARG((png_structp png_ptr,
+typedef
+#ifndef HAVE_INDEF_APNG
+PNG_EXPORT (void, (*P_png_write_frame_tail))
+#else
+void (*P_png_write_frame_tail)
+#endif
+	PNGARG((png_structp png_ptr,
    png_infop info_ptr));
+#ifndef HAVE_INDEF_APNG
 static P_png_set_acTL apng_set_acTL = NULL;
+#endif
 static P_png_write_frame_head apng_write_frame_head = NULL;
 static P_png_write_frame_tail apng_write_frame_tail = NULL;
 #endif
@@ -859,7 +899,10 @@ static inline boolean M_PNGLib(void)
 	return true;
 #else
 	static void *pnglib = NULL;
-	if (apng_set_acTL && apng_write_frame_head && apng_write_frame_tail)
+#ifndef HAVE_INDEF_APNG
+		if (apng_set_acTL)
+#endif
+	if (apng_write_frame_head && apng_write_frame_tail)
 		return true;
 	if (pnglib)
 		return false;
@@ -879,16 +922,24 @@ static inline boolean M_PNGLib(void)
 	if (!pnglib)
 		return false;
 #ifdef HAVE_SDL
+#ifndef HAVE_INDEF_APNG
 	apng_set_acTL = hwSym("png_set_acTL", pnglib);
+#endif
 	apng_write_frame_head = hwSym("png_write_frame_head", pnglib);
 	apng_write_frame_tail = hwSym("png_write_frame_tail", pnglib);
 #endif
 #ifdef _WIN32
+#ifndef HAVE_INDEF_APNG
 	apng_set_acTL = GetProcAddress("png_set_acTL", pnglib);
+#endif
 	apng_write_frame_head = GetProcAddress("png_write_frame_head", pnglib);
 	apng_write_frame_tail = GetProcAddress("png_write_frame_tail", pnglib);
 #endif
-	return (apng_set_acTL && apng_write_frame_head && apng_write_frame_tail);
+#ifndef HAVE_INDEF_APNG
+	if (!apng_set_acTL)
+		return (0);
+#endif
+	return (apng_write_frame_head && apng_write_frame_tail);
 #endif
 }
 
@@ -902,10 +953,12 @@ static void M_PNGFrame(png_structp png_ptr, png_infop png_info_ptr, png_bytep pn
 
 	apng_frames++;
 
+#ifndef HAVE_INDEF_APNG
 #ifndef PNG_STATIC
 	if (apng_set_acTL)
 #endif
 		apng_set_acTL(apng_ptr, apng_info_ptr, apng_frames, 0);
+#endif
 
 	for (y = 0; y < height; y++)
 	{
@@ -936,6 +989,7 @@ static void M_PNGFrame(png_structp png_ptr, png_infop png_info_ptr, png_bytep pn
 	png_free(png_ptr, (png_voidp)row_pointers);
 }
 
+#ifndef HAVE_INDEF_APNG
 static inline boolean M_PNGfind_acTL(void)
 {
 	png_byte cn[8]; // 4 bytes for len then 4 byes for name
@@ -954,9 +1008,11 @@ static inline boolean M_PNGfind_acTL(void)
 	}
 	return false; // acTL chuck not found
 }
+#endif
 
 static void M_PNGfix_acTL(png_structp png_ptr, png_infop png_info_ptr)
 {
+#ifndef HAVE_INDEF_APNG
 	png_byte data[16];
 	long oldpos;
 
@@ -980,6 +1036,9 @@ static void M_PNGfix_acTL(png_structp png_ptr, png_infop png_info_ptr)
 		png_write_chunk(png_ptr, (png_bytep)acTL_cn, data, (png_size_t)8);
 
 	fseek(apng_FILE, oldpos, SEEK_SET);
+#else
+	apng_set_acTL(png_ptr, png_info_ptr, apng_ainfo_ptr, apng_frames, 0);
+#endif
 }
 
 static boolean M_SetupaPNG(png_const_charp filename, png_bytep pal)
@@ -1011,6 +1070,18 @@ static boolean M_SetupaPNG(png_const_charp filename, png_bytep pal)
 		return false;
 	}
 
+#ifdef HAVE_INDEF_APNG
+	apng_ainfo_ptr = apng_create_info_struct(apng_ptr);
+	if (!apng_ainfo_ptr)
+	{
+		CONS_Debug(DBG_RENDER, "M_StartMovie: Error on allocate for libpng\n");
+		png_destroy_write_struct(&apng_ptr,  &apng_info_ptr);
+		fclose(apng_FILE);
+		remove(filename);
+		return false;
+	}
+#endif
+
 	png_init_io(apng_ptr, apng_FILE);
 
 #ifdef PNG_SET_USER_LIMITS_SUPPORTED
@@ -1024,16 +1095,25 @@ static boolean M_SetupaPNG(png_const_charp filename, png_bytep pal)
 	png_set_compression_strategy(apng_ptr, cv_zlib_strategya.value);
 	png_set_compression_window_bits(apng_ptr, cv_zlib_window_bitsa.value);
 
-	M_PNGhdr(apng_ptr, apng_info_ptr, vid.width, vid.height, pal);
+	M_PNGhdr(apng_ptr, apng_info_ptr,
+#ifdef HAVE_INDEF_APNG
+			apng_ainfo_ptr,
+#endif
+			vid.width, vid.height, pal);
 
-	M_PNGText(apng_ptr, apng_info_ptr, true);
+	M_PNGText(apng_ptr, apng_info_ptr, true);/* does not work with indef aPNG */
 
+#ifndef HAVE_INDEF_APNG
 #ifndef PNG_STATIC
 	if (apng_set_acTL)
 #endif
 		apng_set_acTL(apng_ptr, apng_info_ptr, PNG_UINT_31_MAX, 0);
 
 	png_write_info(apng_ptr, apng_info_ptr);
+#else
+	apng_set_acTL(apng_ptr, apng_info_ptr, apng_ainfo_ptr, 0, 0);
+	apng_write_info(apng_ptr, apng_info_ptr, apng_ainfo_ptr);
+#endif
 
 	apng_frames = 0;
 
@@ -1237,7 +1317,11 @@ void M_StopMovie(void)
 			if (apng_frames)
 			{
 				M_PNGfix_acTL(apng_ptr, apng_info_ptr);
+#ifndef HAVE_INDEF_APNG
 				png_write_end(apng_ptr, apng_info_ptr);
+#else
+				apng_write_end(apng_ptr, apng_info_ptr, apng_ainfo_ptr);
+#endif
 			}
 
 			png_destroy_write_struct(&apng_ptr, &apng_info_ptr);
@@ -1340,7 +1424,11 @@ boolean M_SavePNG(const char *filename, void *data, int width, int height, const
 	png_set_compression_strategy(png_ptr, cv_zlib_strategy.value);
 	png_set_compression_window_bits(png_ptr, cv_zlib_window_bits.value);
 
-	M_PNGhdr(png_ptr, png_info_ptr, width, height, PLTE);
+	M_PNGhdr(png_ptr, png_info_ptr,
+#ifdef HAVE_INDEF_APNG
+			0,
+#endif
+			width, height, PLTE);
 
 	M_PNGText(png_ptr, png_info_ptr, false);
 
