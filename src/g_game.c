@@ -1070,15 +1070,7 @@ void G_BuildTiccmd(ticcmd_t *cmd, INT32 realtics)
 	else
 		tspeed = speed;
 
-	// let movement keys cancel each other out
-	if (cv_analog.value) // Analog
-	{
-		if (turnright)
-			cmd->angleturn = (INT16)(cmd->angleturn - angleturn[tspeed]);
-		if (turnleft)
-			cmd->angleturn = (INT16)(cmd->angleturn + angleturn[tspeed]);
-	}
-	if (cv_analog.value || twodlevel
+	if (twodlevel
 		|| (player->mo && (player->mo->flags2 & MF2_TWOD))
 		|| (!demoplayback && (player->climbing
 		|| (player->pflags & PF_NIGHTSMODE)
@@ -1101,9 +1093,27 @@ void G_BuildTiccmd(ticcmd_t *cmd, INT32 realtics)
 	else
 	{
 		if (turnright)
-			cmd->angleturn = (INT16)(cmd->angleturn - angleturn[tspeed]);
+		{
+			if (cv_analog.value)
+			{
+				CV_SetValue(&cv_cam_rotate,
+						AngleFixed(FixedAngle(cv_cam_rotate.value << FRACBITS) -
+							( angleturn[tspeed] << 16 )) >> FRACBITS);
+			}
+			else
+				cmd->angleturn = (INT16)(cmd->angleturn - angleturn[tspeed]);
+		}
 		else if (turnleft)
-			cmd->angleturn = (INT16)(cmd->angleturn + angleturn[tspeed]);
+		{
+			if (cv_analog.value)
+			{
+				CV_SetValue(&cv_cam_rotate,
+						AngleFixed(FixedAngle(cv_cam_rotate.value << FRACBITS) +
+							( angleturn[tspeed] << 16 )) >> FRACBITS);
+			}
+			else
+				cmd->angleturn = (INT16)(cmd->angleturn + angleturn[tspeed]);
+		}
 
 		if (analogjoystickmove && axis != 0)
 		{
@@ -1265,10 +1275,14 @@ void G_BuildTiccmd(ticcmd_t *cmd, INT32 realtics)
 	if (!mouseaiming && cv_mousemove.value)
 		forward += mousey;
 
-	if (cv_analog.value ||
-		(!demoplayback && (player->climbing
+	if ((!demoplayback && (player->climbing
 		|| (player->pflags & PF_SLIDING)))) // Analog for mouse
 		side += mousex*2;
+	else if (cv_analog.value)
+	{
+		CV_SetValue(&cv_cam_rotate,
+				AngleFixed(FixedAngle(cv_cam_rotate.value << FRACBITS) - ( (mousex*8) << 16 )) >> FRACBITS);
+	}
 	else
 		cmd->angleturn = (INT16)(cmd->angleturn - (mousex*8));
 
@@ -1664,6 +1678,15 @@ static void Analog_OnChange(void)
 	if (!cv_chasecam.value && cv_analog.value) {
 		CV_SetValue(&cv_analog, 0);
 		return;
+	}
+
+	if (cv_analog.value)
+		CV_SetValue(&cv_cam_rotate, AngleFixed(localangle) >> FRACBITS);
+	else
+	{
+		CV_SetValue(&cv_cam_rotate, 0);
+		if (players[consoleplayer].mo)
+			localangle = players[consoleplayer].mo->angle;
 	}
 
 	SendWeaponPref();
@@ -2424,6 +2447,9 @@ void G_SpawnPlayer(INT32 playernum, boolean starpost)
 		}
 	}
 	P_MovePlayerToSpawn(playernum, spawnpoint);
+
+	if (playernum == consoleplayer)
+		CV_SetValue(&cv_cam_rotate, AngleFixed(players[playernum].mo->angle) >> FRACBITS);
 
 #ifdef HAVE_BLUA
 	LUAh_PlayerSpawn(&players[playernum]); // Lua hook for player spawning :)

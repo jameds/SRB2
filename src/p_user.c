@@ -7978,7 +7978,7 @@ boolean P_MoveChaseCamera(player_t *player, camera_t *thiscam, boolean resetcall
 		}
 	}
 	else if (P_AnalogMove(player)) // Analog
-		angle = R_PointToAngle2(thiscam->x, thiscam->y, mo->x, mo->y);
+		angle = FixedAngle(camrotate << FRACBITS);
 	else if (demoplayback)
 	{
 		angle = focusangle;
@@ -8058,13 +8058,6 @@ boolean P_MoveChaseCamera(player_t *player, camera_t *thiscam, boolean resetcall
 		{
 			dist = FixedMul(dist, 3*FRACUNIT/2);
 			camheight = FixedMul(camheight, 3*FRACUNIT/2);
-		}
-
-		// x1.2 dist for analog
-		if (P_AnalogMove(player))
-		{
-			dist = FixedMul(dist, 6*FRACUNIT/5);
-			camheight = FixedMul(camheight, 6*FRACUNIT/5);
 		}
 
 		if (player->climbing || player->exiting || player->playerstate == PST_DEAD || (player->pflags & (PF_MACESPIN|PF_ITEMHANG|PF_ROPEHANG)))
