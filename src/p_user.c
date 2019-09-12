@@ -4034,6 +4034,12 @@ static void P_DoJumpStuff(player_t *player, ticcmd_t *cmd)
 							player->pflags &= ~PF_JUMPED;
 							P_DoJump(player, false);
 						}
+						{
+							angle_t a;
+							a = FixedAngle(cv_cam_rotate.value << FRACBITS);
+							if (abs((INT32)(player->mo->angle - a)) < ANGLE_45)
+								player->mo->angle = a;
+						}
 						P_InstaThrust(player->mo, player->mo->angle, FixedMul(actionspd, player->mo->scale));
 
 						if (maptol & TOL_2D)
