@@ -46,7 +46,6 @@ extern md2_t md2_playermodels[MAXSKINS];
 
 void HWR_InitMD2(void);
 void HWR_DrawMD2(gr_vissprite_t *spr);
-void HWR_AddPlayerMD2(INT32 skin);
-void HWR_AddSpriteMD2(size_t spritenum);
+void HWR_AddMD2(const char *line, const char *filename);
 
 #endif // _HW_MD2_H_

@@ -849,16 +849,10 @@ void RSP_LoadModelBlendTexture(rsp_md2_t *model)
 	Z_Free(filename);
 }
 
-// Don't spam the console, or the OS with fopen requests!
-static boolean nomd2s = false;
-
 void RSP_InitModels(void)
 {
 	size_t i;
 	INT32 s;
-	FILE *f;
-	char name[18], filename[32];
-	float scale, offset;
 
 	for (s = 0; s < MAXSKINS; s++)
 	{
@@ -878,23 +872,22 @@ void RSP_InitModels(void)
 		rsp_md2_models[i].notfound = true;
 		rsp_md2_models[i].error = false;
 	}
+}
 
-	// read the md2.dat file
-	//Filename checking fixed ~Monster Iestyn and Golden
-	f = fopen(va("%s"PATHSEP"%s", srb2home, "md2.dat"), "rt");
+void
+RSP_AddModels (const char *line, const char *wadfilename)
+{
+	size_t i;
+	INT32 s;
+	char name[18], filename[32];
+	float scale, offset;
 
-	if (!f)
-	{
-		CONS_Printf("%s %s\n", M_GetText("Error while loading md2.dat:"), strerror(errno));
-		nomd2s = true;
-		return;
-	}
-	while (fscanf(f, "%19s %31s %f %f", name, filename, &scale, &offset) == 4)
+	if (sscanf(line, "%19s %31s %f %f", name, filename, &scale, &offset) == 4)
 	{
 		if (stricmp(name, "PLAY") == 0)
 		{
 			//CONS_Printf("MD2 for sprite PLAY detected in md2.dat, use a player skin instead!\n");
-			continue;
+			return;
 		}
 
 		for (i = 0; i < NUMSPRITES; i++)
@@ -904,8 +897,9 @@ void RSP_InitModels(void)
 				rsp_md2_models[i].scale = scale;
 				rsp_md2_models[i].offset = offset;
 				rsp_md2_models[i].notfound = false;
+				rsp_md2_models[i].error = false;
 				strcpy(rsp_md2_models[i].filename, filename);
-				goto md2found;
+				return;
 			}
 		}
 
@@ -917,102 +911,12 @@ void RSP_InitModels(void)
 				rsp_md2_playermodels[s].scale = scale;
 				rsp_md2_playermodels[s].offset = offset;
 				rsp_md2_playermodels[s].notfound = false;
+				rsp_md2_models[i].error = false;
 				strcpy(rsp_md2_playermodels[s].filename, filename);
-				goto md2found;
+				return;
 			}
 		}
-		// no sprite/player skin name found?!?
-		//CONS_Printf("Unknown sprite/player skin %s detected in md2.dat\n", name);
-md2found:
-		// move on to next line...
-		continue;
 	}
-	fclose(f);
-}
-
-void RSP_AddPlayerModel(int skin) // For MD2's that were added after startup
-{
-	FILE *f;
-	char name[18], filename[32];
-	float scale, offset;
-
-	if (nomd2s)
-		return;
-
-	//CONS_Printf("RSP_AddPlayerModel()...\n");
-
-	// read the md2.dat file
-	//Filename checking fixed ~Monster Iestyn and Golden
-	f = fopen(va("%s"PATHSEP"%s", srb2home, "md2.dat"), "rt");
-
-	if (!f)
-	{
-		CONS_Printf("Error while loading md2.dat\n");
-		nomd2s = true;
-		return;
-	}
-
-	// Check for any MD2s that match the names of player skins!
-	while (fscanf(f, "%19s %31s %f %f", name, filename, &scale, &offset) == 4)
-	{
-		if (stricmp(name, skins[skin].name) == 0)
-		{
-			rsp_md2_playermodels[skin].skin = skin;
-			rsp_md2_playermodels[skin].scale = scale;
-			rsp_md2_playermodels[skin].offset = offset;
-			rsp_md2_playermodels[skin].notfound = false;
-			strcpy(rsp_md2_playermodels[skin].filename, filename);
-			goto playermd2found;
-		}
-	}
-
-	rsp_md2_playermodels[skin].notfound = true;
-playermd2found:
-	fclose(f);
-}
-
-void RSP_AddSpriteModel(size_t spritenum) // For MD2s that were added after startup
-{
-	FILE *f;
-	// name[18] is used to check for names in the md2.dat file that match with sprites or player skins
-	// sprite names are always 4 characters long, and names is for player skins can be up to 19 characters long
-	char name[18], filename[32];
-	float scale, offset;
-
-	if (nomd2s)
-		return;
-
-	if (spritenum == SPR_PLAY) // Handled already NEWMD2: Per sprite, per-skin check
-		return;
-
-	// Read the md2.dat file
-	//Filename checking fixed ~Monster Iestyn and Golden
-	f = fopen(va("%s"PATHSEP"%s", srb2home, "md2.dat"), "rt");
-
-	if (!f)
-	{
-		CONS_Printf("Error while loading md2.dat\n");
-		nomd2s = true;
-		return;
-	}
-
-	// Check for any MD2s that match the names of player skins!
-	while (fscanf(f, "%19s %31s %f %f", name, filename, &scale, &offset) == 4)
-	{
-		if (stricmp(name, sprnames[spritenum]) == 0)
-		{
-			rsp_md2_models[spritenum].scale = scale;
-			rsp_md2_models[spritenum].offset = offset;
-			rsp_md2_models[spritenum].notfound = false;
-			strcpy(rsp_md2_models[spritenum].filename, filename);
-			goto spritemd2found;
-		}
-	}
-
-	//CONS_Printf("MD2 for sprite %s not found\n", sprnames[spritenum]);
-	rsp_md2_models[spritenum].notfound = true;
-spritemd2found:
-	fclose(f);
 }
 
 rsp_md2_t *RSP_ModelAvailable(spritenum_t spritenum, skin_t *skin)

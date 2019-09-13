@@ -706,6 +706,10 @@ void R_Init(void)
 	RSP_Init();
 #endif
 
+#if defined (HWRENDER) || defined (SOFTPOLY)
+	R_LoadModels();
+#endif
+
 	framecount = 0;
 }
 

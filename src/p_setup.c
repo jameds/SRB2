@@ -3296,6 +3296,13 @@ boolean P_AddWadFile(const char *wadfilename)
 	R_AddSkins(wadnum); // faB: wadfile index in wadfiles[]
 
 	//
+	// load models
+	//
+#if defined (HWRENDER) || defined (SOFTPOLY)
+	R_LoadModels();
+#endif
+
+	//
 	// search for maps
 	//
 	lumpinfo = wadfiles[wadnum]->lumpinfo;

@@ -11,7 +11,10 @@
 /// \file  r_things.c
 /// \brief Refresh of things, i.e. objects represented by sprites
 
+#include <errno.h>
+
 #include "doomdef.h"
+#include "d_main.h" // srb2home
 #include "console.h"
 #include "g_game.h"
 #include "r_local.h"
@@ -391,14 +394,6 @@ void R_AddSpriteDefs(UINT16 wadnum)
 
 		if (R_AddSingleSpriteDef(spritename, &sprites[i], wadnum, start, end))
 		{
-#ifdef HWRENDER
-			if (rendermode == render_opengl)
-				HWR_AddSpriteMD2(i);
-#endif
-#ifdef SOFTPOLY
-			if (rendermode == render_soft)
-				RSP_AddSpriteModel(i);
-#endif // SOFTPOLY
 			// if a new sprite was added (not just replaced)
 			addsprites++;
 #ifndef ZDEBUG
@@ -2439,6 +2434,55 @@ static void Sk_SetDefaultValue(skin_t *skin)
 			skin->soundsid[S_sfx[i].skinsound] = i;
 }
 
+#if defined (HWRENDER) || defined (SOFTPOLY)
+void
+R_LoadModels (void)
+{
+	static boolean md2dat = true;
+
+	char    line[MAXLINELEN];
+
+	FILE   *f;
+
+	// read the md2.dat file
+	//Filename checking fixed ~Monster Iestyn and Golden
+	f = fopen(va("%s"PATHSEP"%s", srb2home, "md2.dat"), "rt");
+
+	if (f)
+	{
+		md2dat = true;
+
+		while (fgets(line, MAXLINELEN, f))
+		{
+#ifdef HWRENDER
+			if (rendermode == render_opengl)
+				HWR_AddMD2(line, "md2.dat");
+#endif
+#ifdef SOFTPOLY
+			if (rendermode == render_soft)
+				RSP_AddModels(line, "md2.dat");
+#endif // SOFTPOLY
+		}
+
+		if (ferror(f))
+		{
+			CONS_Alert(CONS_ERROR, M_GetText("md2.dat: %s\n"),
+					strerror(errno));
+		}
+
+		fclose(f);
+	}
+	else
+	{
+		if (md2dat)
+		{
+			CONS_Printf("%s %s\n", M_GetText("Error while loading md2.dat:"), strerror(errno));
+			md2dat = false;
+		}
+	}
+}
+#endif/*defined (HWRENDER) || defined (SOFTPOLY)*/
+
 //
 // Initialize the basic skins
 //
@@ -2486,16 +2530,6 @@ void R_InitSkins(void)
 	skin->spritedef.numframes = sprites[SPR_PLAY].numframes;
 	skin->spritedef.spriteframes = sprites[SPR_PLAY].spriteframes;
 	ST_LoadFaceGraphics(skin->face, skin->superface, 0);
-
-	//MD2 for sonic doesn't want to load in Linux.
-#ifdef HWRENDER
-	if (rendermode == render_opengl)
-		HWR_AddPlayerMD2(0);
-#endif
-#ifdef SOFTPOLY
-	if (rendermode == render_soft)
-		RSP_AddPlayerModel(0);
-#endif // SOFTPOLY
 }
 
 // returns true if the skin name is found (loaded from pwad)
@@ -2900,15 +2934,6 @@ next_token:
 
 		// add face graphics
 		ST_LoadFaceGraphics(skin->face, skin->superface, numskins);
-
-#ifdef HWRENDER
-		if (rendermode == render_opengl)
-			HWR_AddPlayerMD2(numskins);
-#endif
-#ifdef SOFTPOLY
-		if (rendermode == render_soft)
-			RSP_AddPlayerModel(numskins);
-#endif // SOFTPOLY
 
 		numskins++;
 	}

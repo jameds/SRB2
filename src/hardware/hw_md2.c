@@ -444,16 +444,10 @@ static void md2_loadBlendTexture(md2_t *model)
 	Z_Free(filename);
 }
 
-// Don't spam the console, or the OS with fopen requests!
-static boolean nomd2s = false;
-
 void HWR_InitMD2(void)
 {
 	size_t i;
 	INT32 s;
-	FILE *f;
-	char name[18], filename[32];
-	float scale, offset;
 
 	CONS_Printf("InitMD2()...\n");
 	for (s = 0; s < MAXSKINS; s++)
@@ -474,23 +468,22 @@ void HWR_InitMD2(void)
 		md2_models[i].notfound = true;
 		md2_models[i].error = false;
 	}
+}
 
-	// read the md2.dat file
-	//Filename checking fixed ~Monster Iestyn and Golden
-	f = fopen(va("%s"PATHSEP"%s", srb2home, "md2.dat"), "rt");
+void
+HWR_AddMD2 (const char *line, const char *wadfilename)
+{
+	size_t i;
+	INT32 s;
+	char name[18], filename[32];
+	float scale, offset;
 
-	if (!f)
-	{
-		CONS_Printf("%s %s\n", M_GetText("Error while loading md2.dat:"), strerror(errno));
-		nomd2s = true;
-		return;
-	}
-	while (fscanf(f, "%19s %31s %f %f", name, filename, &scale, &offset) == 4)
+	if (sscanf(line, "%19s %31s %f %f", name, filename, &scale, &offset) == 4)
 	{
 		if (stricmp(name, "PLAY") == 0)
 		{
 			//CONS_Printf("MD2 for sprite PLAY detected in md2.dat, use a player skin instead!\n");
-			continue;
+			return;
 		}
 
 		for (i = 0; i < NUMSPRITES; i++)
@@ -504,8 +497,9 @@ void HWR_InitMD2(void)
 				md2_models[i].scale = scale;
 				md2_models[i].offset = offset;
 				md2_models[i].notfound = false;
+				md2_models[i].error = false;
 				strcpy(md2_models[i].filename, filename);
-				goto md2found;
+				return;
 			}
 		}
 
@@ -518,104 +512,14 @@ void HWR_InitMD2(void)
 				md2_playermodels[s].scale = scale;
 				md2_playermodels[s].offset = offset;
 				md2_playermodels[s].notfound = false;
+				md2_playermodels[s].error = false;
 				strcpy(md2_playermodels[s].filename, filename);
-				goto md2found;
+				return;
 			}
 		}
 		// no sprite/player skin name found?!?
-		//CONS_Printf("Unknown sprite/player skin %s detected in md2.dat\n", name);
-md2found:
-		// move on to next line...
-		continue;
+		CONS_Printf("Unknown sprite/player skin %s detected in md2.dat\n", name);
 	}
-	fclose(f);
-}
-
-void HWR_AddPlayerMD2(int skin) // For MD2's that were added after startup
-{
-	FILE *f;
-	char name[18], filename[32];
-	float scale, offset;
-
-	if (nomd2s)
-		return;
-
-	CONS_Printf("AddPlayerMD2()...\n");
-
-	// read the md2.dat file
-	//Filename checking fixed ~Monster Iestyn and Golden
-	f = fopen(va("%s"PATHSEP"%s", srb2home, "md2.dat"), "rt");
-
-	if (!f)
-	{
-		CONS_Printf("Error while loading md2.dat\n");
-		nomd2s = true;
-		return;
-	}
-
-	// Check for any MD2s that match the names of player skins!
-	while (fscanf(f, "%19s %31s %f %f", name, filename, &scale, &offset) == 4)
-	{
-		if (stricmp(name, skins[skin].name) == 0)
-		{
-			md2_playermodels[skin].skin = skin;
-			md2_playermodels[skin].scale = scale;
-			md2_playermodels[skin].offset = offset;
-			md2_playermodels[skin].notfound = false;
-			strcpy(md2_playermodels[skin].filename, filename);
-			goto playermd2found;
-		}
-	}
-
-	//CONS_Printf("MD2 for player skin %s not found\n", skins[skin].name);
-	md2_playermodels[skin].notfound = true;
-playermd2found:
-	fclose(f);
-}
-
-
-void HWR_AddSpriteMD2(size_t spritenum) // For MD2s that were added after startup
-{
-	FILE *f;
-	// name[18] is used to check for names in the md2.dat file that match with sprites or player skins
-	// sprite names are always 4 characters long, and names is for player skins can be up to 19 characters long
-	char name[18], filename[32];
-	float scale, offset;
-
-	if (nomd2s)
-		return;
-
-	if (spritenum == SPR_PLAY) // Handled already NEWMD2: Per sprite, per-skin check
-		return;
-
-	// Read the md2.dat file
-	//Filename checking fixed ~Monster Iestyn and Golden
-	f = fopen(va("%s"PATHSEP"%s", srb2home, "md2.dat"), "rt");
-
-	if (!f)
-	{
-		CONS_Printf("Error while loading md2.dat\n");
-		nomd2s = true;
-		return;
-	}
-
-	// Check for any MD2s that match the names of sprite names!
-	while (fscanf(f, "%19s %31s %f %f", name, filename, &scale, &offset) == 4)
-	{
-		if (stricmp(name, sprnames[spritenum]) == 0)
-		{
-			md2_models[spritenum].scale = scale;
-			md2_models[spritenum].offset = offset;
-			md2_models[spritenum].notfound = false;
-			strcpy(md2_models[spritenum].filename, filename);
-			goto spritemd2found;
-		}
-	}
-
-	//CONS_Printf("MD2 for sprite %s not found\n", sprnames[spritenum]);
-	md2_models[spritenum].notfound = true;
-spritemd2found:
-	fclose(f);
 }
 
 // Define for getting accurate color brightness readings according to how the human eye sees them.

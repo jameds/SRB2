@@ -57,6 +57,9 @@ void R_DelSpriteDefs(UINT16 wadnum);
 //SoM: 6/5/2000: Light sprites correctly!
 void R_AddSprites(sector_t *sec, INT32 lightlevel);
 void R_InitSprites(void);
+#if defined (HWRENDER) || defined (SOFTPOLY)
+void R_LoadModels(void);
+#endif
 void R_ClearSprites(void);
 void R_ClipSprites(void);
 void R_DrawMasked(void);
