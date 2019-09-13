@@ -1755,6 +1755,7 @@ int W_VerifyNMUSlumps(const char *filename)
 		{"COLORMAP", 8}, // Colormap changes
 		{"CLM", 3}, // Colormap changes
 		{"TRANS", 5}, // Translucency map changes
+		{"MODELS", 6}, // MD2/MD3 model configuration
 
 		{"LTFNT", 5}, // Level title font changes
 		{"TTL", 3}, // Act number changes

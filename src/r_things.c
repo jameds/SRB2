@@ -2440,9 +2440,19 @@ R_LoadModels (void)
 {
 	static boolean md2dat = true;
 
-	char    line[MAXLINELEN];
+	char   *line;
+	size_t  linesize;
 
 	FILE   *f;
+
+	int     wad;
+	UINT16  lump;
+	char   *p;
+	char   *tempname;
+
+	size_t  n;
+
+	line = NULL;
 
 	// read the md2.dat file
 	//Filename checking fixed ~Monster Iestyn and Golden
@@ -2451,6 +2461,9 @@ R_LoadModels (void)
 	if (f)
 	{
 		md2dat = true;
+
+		line = ZZ_Alloc(MAXLINELEN);
+		linesize = MAXLINELEN;
 
 		while (fgets(line, MAXLINELEN, f))
 		{
@@ -2480,6 +2493,41 @@ R_LoadModels (void)
 			md2dat = false;
 		}
 	}
+
+	/*
+	Now load models configuration from WADs.
+
+	Don't search base files. Change this later
+	if models ever get included in the game.
+	*/
+
+	for (wad = mainwads + 1; wad < numwadfiles; ++wad)
+	{
+		if (( lump = W_CheckNumForNamePwad("MODELS", wad, 0) ) != INT16_MAX)
+		{
+			if (( n = W_LumpLengthPwad(wad, lump) ) > linesize)
+				line = Z_Realloc(line, n, PU_STATIC, NULL);
+
+			W_ReadLumpPwad(wad, lump, line);
+
+			p = strtok(line, "\n");
+			do
+			{
+				nameonly(( tempname = va("%s", wadfiles[wad]->filename) ));
+#ifdef HWRENDER
+				if (rendermode == render_opengl)
+					HWR_AddMD2(p, tempname);
+#endif
+#ifdef SOFTPOLY
+				if (rendermode == render_soft)
+					RSP_AddModels(p, tempname);
+#endif // SOFTPOLY
+			}
+			while (( p = strtok(0,"\n") )) ;
+		}
+	}
+
+	Z_Free(line);
 }
 #endif/*defined (HWRENDER) || defined (SOFTPOLY)*/
 
