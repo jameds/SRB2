@@ -517,8 +517,6 @@ HWR_AddMD2 (const char *line, const char *wadfilename)
 				return;
 			}
 		}
-		// no sprite/player skin name found?!?
-		CONS_Printf("Unknown sprite/player skin %s detected in md2.dat\n", name);
 	}
 }
 
