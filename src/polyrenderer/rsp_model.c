@@ -911,7 +911,7 @@ RSP_AddModels (const char *line, const char *wadfilename)
 				rsp_md2_playermodels[s].scale = scale;
 				rsp_md2_playermodels[s].offset = offset;
 				rsp_md2_playermodels[s].notfound = false;
-				rsp_md2_models[i].error = false;
+				rsp_md2_playermodels[s].error = false;
 				strcpy(rsp_md2_playermodels[s].filename, filename);
 				return;
 			}
