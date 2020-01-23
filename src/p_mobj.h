@@ -323,7 +323,9 @@ typedef struct mobj_s
 
 	// Additional pointers for NiGHTS hoops
 	struct mobj_s *hnext;
+	UINT32 hnext_mobjnum;
 	struct mobj_s *hprev;
+	UINT32 hprev_mobjnum;
 
 	mobjtype_t type;
 	const mobjinfo_t *info; // &mobjinfo[mobj->type]
@@ -335,6 +337,7 @@ typedef struct mobj_s
 	INT32 movecount; // when 0, select a new dir
 
 	struct mobj_s *target; // Thing being chased/attacked (or NULL), and originator for missiles.
+	UINT32 target_mobjnum;
 
 	INT32 reactiontime; // If not 0, don't attack yet.
 
@@ -349,6 +352,7 @@ typedef struct mobj_s
 	mapthing_t *spawnpoint; // Used for CTF flags, objectplace, and a handful other applications.
 
 	struct mobj_s *tracer; // Thing being chased/attacked for tracers.
+	UINT32 tracer_mobjnum;
 
 	fixed_t friction;
 	fixed_t movefactor;

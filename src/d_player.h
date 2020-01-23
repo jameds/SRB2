@@ -384,6 +384,7 @@ typedef struct player_s
 	mobjtype_t revitem; // Object # to spawn for spindash/spinning
 	mobjtype_t followitem; // Object # to spawn for Smiles
 	mobj_t *followmobj; // Smiles all around
+	UINT32  followmobj_mobjnum;
 
 	fixed_t actionspd; // Speed of thok/glide/fly
 	fixed_t mindash; // Minimum spindash speed
@@ -456,7 +457,9 @@ typedef struct player_s
 	angle_t old_angle_pos;
 
 	mobj_t *axis1;
+	UINT32  axis1_mobjnum;
 	mobj_t *axis2;
+	UINT32  axis2_mobjnum;
 	tic_t bumpertime; // Currently being bounced by MT_NIGHTSBUMPER
 	INT32 flyangle;
 	tic_t drilltimer;
@@ -468,7 +471,9 @@ typedef struct player_s
 	UINT8 drilldelay;
 	boolean bonustime; // Capsule destroyed, now it's bonus time!
 	mobj_t *capsule; // Go inside the capsule
+	UINT32  capsule_mobjnum;
 	mobj_t *drone; // Move center to the drone
+	UINT32  drone_mobjnum;
 	fixed_t oldscale; // Pre-Nightserize scale
 	UINT8 mare; // Current mare
 	UINT8 marelap; // Current mare lap
@@ -502,6 +507,7 @@ typedef struct player_s
 	INT32 onconveyor; // You are on a conveyor belt if nonzero
 
 	mobj_t *awayviewmobj;
+	UINT32  awayviewmobj_mobjnum;
 	INT32 awayviewtics;
 	angle_t awayviewaiming; // Used for cut-away view
 

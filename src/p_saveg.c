@@ -516,7 +516,8 @@ static void P_LocalArchivePlayers(void)
 
 		player = &((player_t*)save_p)[-1];
 
-#define RELINK(var) if (var != NULL) var = (mobj_t*)var->mobjnum
+//#define RELINK(var) if (var != NULL) var = (mobj_t*)var->mobjnum
+#define RELINK(var) if (var != NULL) var ## _mobjnum = var->mobjnum
 		RELINK(player->capsule);
 		RELINK(player->axis1);
 		RELINK(player->axis2);
@@ -2511,7 +2512,8 @@ static void P_LocalArchiveThinkers(void)
 			WRITEMEM(save_p, thinker, specialDefs[j].size);
 
 			// relink saved pointers with saved mobjnums
-#define RELINK(var) if (var != NULL) var = (mobj_t*)(var->mobjnum)
+//#define RELINK(var) if (var != NULL) var = (mobj_t*)(var->mobjnum)
+#define RELINK(var) if (var != NULL) var ## _mobjnum = (var->mobjnum)
 			if (j == tc_mobj)
 			{
 				savedMobj = &((mobj_t*)save_p)[-1];
@@ -4082,7 +4084,8 @@ static void P_LocalUnArchiveThinkers(void)
 	}
 
 	// restore pointers
-#define RELINK(var) if (var) { UINT32 index = (UINT32)var; var = NULL; P_SetTarget(&var, mobjByNum[index]); }
+//#define RELINK(var) if (var) { UINT32 index = (UINT32)var; var = NULL; P_SetTarget(&var, mobjByNum[index]); }
+#define RELINK(var) if (var) { UINT32 index = var ## _mobjnum; var = NULL; P_SetTarget(&var, mobjByNum[index]); }
 	for (thinker = thlist[THINK_MOBJ].next; thinker != &thlist[THINK_MOBJ]; thinker = thinker->next)
 	{
 		if (thinker->function.acp1 == (actionf_p1)P_RemoveThinkerDelayed)
