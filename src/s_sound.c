@@ -1211,7 +1211,7 @@ INT32 S_AdjustSoundParams(const mobj_t *listener, fixed_t x, fixed_t y, fixed_t 
 
 	if (sfxinfo->pitch & SF_OUTSIDESOUND) // Rain special case
 	{
-		fixed_t x, y, yl, yh, xl, xh, newdist;
+		fixed_t yl, yh, xl, xh, newdist;
 
 		if (R_PointInSubsector(listensource.x, listensource.y)->sector->ceilingpic == skyflatnum)
 			approx_dist = 0;

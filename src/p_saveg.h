@@ -42,7 +42,7 @@ void P_SaveNetGame(void);
 void P_SaveGameState(savestate_t* savestate);
 boolean P_LoadGame(INT16 mapoverride);
 boolean P_LoadNetGame(boolean preserveLevel);
-boolean P_LoadGameState(const savestate_t* savestate);
+boolean P_LoadGameState(savestate_t* savestate);
 
 mobj_t *P_FindNewPosition(UINT32 oldposition);
 

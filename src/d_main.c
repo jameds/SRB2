@@ -554,7 +554,12 @@ static void D_Display(void)
 			{
 				char temp[1024];
 				const char* nextStr = strstr(str + 1, "\n");
-				int len = nextStr ? nextStr - str : strlen(str);
+				int len;
+
+				if (nextStr)
+					len = nextStr - str;
+				else
+					len = strlen(str);
 
 				memcpy(temp, str, len);
 				temp[len] = 0;

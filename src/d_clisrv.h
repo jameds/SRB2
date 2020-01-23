@@ -551,7 +551,7 @@ void D_QuitNetGame(void);
 void TryRunTics(tic_t realtic);
 
 // Invalidates save states used in simulations
-void InvalidateSavestates();
+void InvalidateSavestates(void);
 
 // extra data for lmps
 // these functions scare me. they contain magic.

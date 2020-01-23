@@ -731,7 +731,6 @@ static inline ssize_t SOCK_SendToAddr(SOCKET_TYPE socket, mysockaddr_t *sockaddr
 
 	if (cv_netdelay.value > 0 || cv_netjitter.value > 0 || (cv_netspikes.value && time >= nextSpikeTime)) {
 		// add a nasty packet delay for testing!
-		boolean writtenPacket = false;
 		int addSpike = (cv_netspikes.value && time >= nextSpikeTime) ? nextSpikeDuration : 0;
 
 		for (int i = 0; i < NUMDELAYPACKETS; i++) {

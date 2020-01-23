@@ -501,6 +501,8 @@ static void P_NetUnArchivePlayers(void)
 
 static void P_LocalArchivePlayers(void)
 {
+	player_t* player;
+
 	int i;
 
 	WRITEUINT32(save_p, ARCHIVEBLOCK_PLAYERS);
@@ -512,7 +514,7 @@ static void P_LocalArchivePlayers(void)
 
 		WRITEMEM(save_p, &players[i], sizeof(player_t));
 
-		player_t* player = &((player_t*)save_p)[-1];
+		player = &((player_t*)save_p)[-1];
 
 #define RELINK(var) if (var != NULL) var = (mobj_t*)var->mobjnum
 		RELINK(player->capsule);
@@ -824,35 +826,38 @@ static void ResetSectors(void)
 {
 	UINT8* wadData = NULL;
 	const mapsector_t *ms;
-	const mapsidedef_t *msd;
+	//const mapsidedef_t *msd;
 	const maplinedef_t *mld;
 	sector_t *ss;
 	line_t* li;
-	side_t* si;
+	//side_t* si;
 
 	if (W_IsLumpWad(lastloadedmaplumpnum)) // welp it's a map wad in a pk3
 	{ // HACK: Open wad file rather quickly so we can get the data from the relevant lumps
+		filelump_t *fileinfo;
 		wadData = W_CacheLumpNum(lastloadedmaplumpnum, PU_STATIC);
-		filelump_t *fileinfo = (filelump_t *)(wadData + ((wadinfo_t *)wadData)->infotableofs);
+		fileinfo = (filelump_t *)(wadData + ((wadinfo_t *)wadData)->infotableofs);
 #define retrieve_mapdata(d, f)\
 		d = (void*)(wadData + (f)->filepos);
 
 		retrieve_mapdata(ms, fileinfo + ML_SECTORS);
 		retrieve_mapdata(mld, fileinfo + ML_LINEDEFS);
-		retrieve_mapdata(msd, fileinfo + ML_SIDEDEFS);
+		//retrieve_mapdata(msd, fileinfo + ML_SIDEDEFS);
 #undef retrieve_mapdata
 	}
 	else // phew it's just a WAD
 	{
 		ms = W_CacheLumpNum(lastloadedmaplumpnum + ML_SECTORS, PU_CACHE);
 		mld = W_CacheLumpNum(lastloadedmaplumpnum + ML_LINEDEFS, PU_CACHE);
-		msd = W_CacheLumpNum(lastloadedmaplumpnum + ML_SIDEDEFS, PU_CACHE);
+		//msd = W_CacheLumpNum(lastloadedmaplumpnum + ML_SIDEDEFS, PU_CACHE);
 	}
 
 	// reset every sector
 	// commented out lines are eh lines
 	// we really should do them properly, but they take effort and only have a visual effect
 	for (ss = sectors; ss < &sectors[numsectors]; ss++, ms++) {
+		ffloor_t* floor = ss->ffloors;
+
 		ss->floorheight = ms->floorheight<<FRACBITS;
 		ss->ceilingheight = ms->ceilingheight<<FRACBITS;
 
@@ -872,8 +877,6 @@ static void ResetSectors(void)
 		ss->nexttag = ss->spawn_nexttag;
 		//ss->extra_colormap = GetNetColormapFromList(READUINT32(get));
 
-		ffloor_t* floor = ss->ffloors;
-
 		while (floor != NULL)
 		{
 			floor->flags = floor->spawnflags;
@@ -890,13 +893,13 @@ static void ResetSectors(void)
 			li->callcount = 0;
 		}
 
-		si = &sides[li->sidenum[0]];
+		//si = &sides[li->sidenum[0]];
 		//si->textureoffset = si->;
 		//si->toptexture = READINT32(get);
 		//si->bottomtexture = READINT32(get);
 		//si->midtexture = READINT32(get);
 
-		si = &sides[li->sidenum[1]];
+		//si = &sides[li->sidenum[1]];
 		//si->textureoffset = READFIXED(get);
 		//si->toptexture = READINT32(get);
 		//si->bottomtexture = READINT32(get);
@@ -938,18 +941,19 @@ static void P_LocalUnArchiveWorld(void)
 {
 	UINT8* get = save_p;
 
+	// preserve certain local variables
+	sector_t* preservedSectors = Z_Malloc(numsectors * sizeof(sector_t), PU_CACHE, NULL);
+
 	if (READUINT32(get) != ARCHIVEBLOCK_WORLD)
 	{
 		I_Error("Bad SaveState at archive block World");
 	}
 
-	// preserve certain local variables
-	sector_t* preservedSectors = Z_Malloc(numsectors * sizeof(sector_t), PU_CACHE, NULL);
-
 	memcpy(preservedSectors, sectors, numsectors * sizeof(sector_t));
 
-	UINT32 sectorSize = READUINT32(get);
-	UINT32 lineSize = READUINT32(get);
+	//sectorSize = READUINT32(get);
+	//lineSize = READUINT32(get);
+	get += 2 * sizeof (UINT32);
 	READMEM(get, sectors, numsectors * sizeof(sectors[0]));
 	READMEM(get, lines, numlines * sizeof(lines[0]));
 
@@ -999,8 +1003,9 @@ static void P_NetArchiveWorld(void)
 
 	if (W_IsLumpWad(lastloadedmaplumpnum)) // welp it's a map wad in a pk3
 	{ // HACK: Open wad file rather quickly so we can get the data from the relevant lumps
+		filelump_t *fileinfo;
 		wadData = W_CacheLumpNum(lastloadedmaplumpnum, PU_STATIC);
-		filelump_t *fileinfo = (filelump_t *)(wadData + ((wadinfo_t *)wadData)->infotableofs);
+		fileinfo = (filelump_t *)(wadData + ((wadinfo_t *)wadData)->infotableofs);
 #define retrieve_mapdata(d, f)\
 		d = (void*)(wadData + (f)->filepos);
 
@@ -1568,8 +1573,8 @@ typedef struct
 } specialdef_t;
 
 // special function/data size associations
-#define NOSECTOR(func, type) (actionf_p1)func, sizeof(type), 0, 0
-#define WITHSECTOR(func, type, targets) (actionf_p1)func, sizeof(type), (UINT32)&((type*)NULL)->sector, targets
+#define NOSECTOR(func, type) { (actionf_p1)func, sizeof(type), 0, 0 }
+#define WITHSECTOR(func, type, targets) { (actionf_p1)func, sizeof(type), offsetof (type, sector), targets }
 static const specialdef_t specialDefs[] =
 {
 	NOSECTOR(P_MobjThinker, mobj_t),                   // tc_mobj
@@ -2480,11 +2485,10 @@ static inline void SaveWhatThinker(const thinker_t *th, const UINT8 type)
 //
 static void P_LocalArchiveThinkers(void)
 {
-	int i, j;
+	size_t i, j;
 	const thinker_t* thinker;
 	mobj_t* savedMobj;
 	executor_t* savedExecutor;
-	UINT8* original = save_p;
 	WRITEUINT32(save_p, ARCHIVEBLOCK_THINKERS);
 
 	for (i = 0; i < NUM_THINKERLISTS; i++)
@@ -3745,6 +3749,7 @@ thinker_t* debugThinkerLists[NUM_THINKERLISTS][4096];
 mobj_t* debugMobjLists[NUM_THINKERLISTS][4096];
 int numDebugThinkers[NUM_THINKERLISTS];
 
+#if 0
 static void CollectDebugObjectList(void) {
 	int i;
 	for (i = 0; i < NUM_THINKERLISTS; i++) {
@@ -3760,6 +3765,7 @@ static void CollectDebugObjectList(void) {
 		numDebugThinkers[i] = count;
 	}
 }
+#endif
 
 void S_DetachChannelsFromOrigin(void* origin);
 
@@ -3772,7 +3778,7 @@ typedef struct
 #define HASHLOC(x, y, z) (((x>>4)-(y>>8)+(z>>12)-(x>>16)+(y>>20)-(z>>24)+(x>>28)-(y>>24)+(z>>20)-(x>>16)+(y>>8)-(z>>4)) & 0x7FFF)
 #define MAXNUMMOBJSBYLOC 15
 
-static void P_LocalUnArchiveThinkers()
+static void P_LocalUnArchiveThinkers(void)
 {
 	thinker_t *thinker;
 	mobj_t* mobj;
@@ -3788,13 +3794,13 @@ static void P_LocalUnArchiveThinkers()
 	static int numMobjsByLoc[32768];
 	static mobj_t* mobjByNum[16384];
 
+	int hashHits = 0;
+	int hashMisses = 0;
+
 	memset(mobjByNum, 0, sizeof(mobjByNum));
 	memset(mobjByLoc, 0, sizeof(mobjByLoc));
 	memset(numMobjsByLoc, 0, sizeof(numMobjsByLoc));
 	memset(numthinkersbytype, 0, sizeof(numthinkersbytype));
-
-	int hashHits = 0;
-	int hashMisses = 0;
 
 	if (READUINT32(save_p) != ARCHIVEBLOCK_THINKERS)
 		I_Error("Bad SaveState at archive block Thinkers");
@@ -3819,11 +3825,11 @@ static void P_LocalUnArchiveThinkers()
 
 		for (thinker = thlist[i].next; thinker != &thlist[i]; thinker = thinker->next)
 		{
-			if (thinker->function.acp1 == P_RemoveThinkerDelayed)
+			if (thinker->function.acp1 == (actionf_p1)P_RemoveThinkerDelayed)
 				continue;
 			for (j = 0; j < tc_end; j++)
 			{
-				if (thinker->function.acp1 == specialDefs[j].action)
+				if (thinker->function.acp1 == (actionf_p1)specialDefs[j].action)
 					break;
 			}
 
@@ -3831,7 +3837,7 @@ static void P_LocalUnArchiveThinkers()
 			thinkersbytype[j][numthinkersbytype[j]] = thinker;
 			numthinkersbytype[j]++;
 
-			if (thinker->function.acp1 == P_MobjThinker)
+			if (thinker->function.acp1 == (actionf_p1)P_MobjThinker)
 			{
 				UINT16 locHash = HASHLOC(((mobj_t*)thinker)->x, ((mobj_t*)thinker)->y, ((mobj_t*)thinker)->z);
 
@@ -3857,16 +3863,15 @@ static void P_LocalUnArchiveThinkers()
 	{
 		for (;;)
 		{
-			msecnode_t* preserveTouchingSectorlist = NULL;
-			sector_t* preserveSubsector = NULL;
+			thinker_t* newthinker = NULL;
+			boolean preservePositions = false;
+
+			mobj_t preservedMobj;
 
 			tclass = READUINT8(save_p);
 
 			if (tclass == 0xFF)
 				break; // next list
-
-			thinker_t* newthinker = NULL;
-			boolean preservePositions = false;
 
 			// find the existing thinker(s) at the same position, if possible
 			if (tclass == tc_mobj)
@@ -3942,9 +3947,8 @@ static void P_LocalUnArchiveThinkers()
 			}
 
 			// preserve vital positioning stuff (cleanup...)
-			mobj_t preservedMobj;
 			if (tclass == tc_mobj)
-				preservedMobj = *(mobj_t*)newthinker;
+				memcpy(&preservedMobj, newthinker, sizeof preservedMobj);
 
 			// read in the data
 			READMEM(save_p, newthinker, specialDefs[tclass].size);
@@ -3956,7 +3960,7 @@ static void P_LocalUnArchiveThinkers()
 			{
 				case tc_mobj:
 				{
-					mobj_t* mobj = (mobj_t*)newthinker;
+					mobj = (mobj_t*)newthinker;
 					if (mobj->type == MT_REDFLAG)
 					{
 						redflag = mobj;
@@ -4093,7 +4097,7 @@ static void P_LocalUnArchiveThinkers()
 	}
 
 	// restore player pointers (the above doesn't always seem to work perhaps because playeringame is false?
-	for (int i = 0; i < MAXPLAYERS; i++)
+	for (i = 0; i < MAXPLAYERS; i++)
 	{
 		if (playeringame[i])
 		{
@@ -4953,13 +4957,13 @@ static inline boolean P_NetUnArchiveMisc(boolean preserveLevel)
 	return true;
 }
 
-static inline void P_LocalArchiveCameras()
+static inline void P_LocalArchiveCameras(void)
 {
 	WRITEMEM(save_p, &camera, sizeof(camera));
 	WRITEMEM(save_p, &camera2, sizeof(camera2));
 }
 
-static inline void P_LocalUnArchiveCameras()
+static inline void P_LocalUnArchiveCameras(void)
 {
 	boolean chase1 = camera.chase;
 	boolean chase2 = camera2.chase;
@@ -5192,11 +5196,9 @@ void P_SaveGameState(savestate_t* savestate)
 
 // P_LoadGameState is a within-level-only mechanism for loading the game state. It must not be used cross level. Used for simulation backtracking.
 // It uses a mixture of existing NetUnArchive functions and faster LocalUnArchive functions to do the job
-boolean P_LoadGameState(const savestate_t* savestate)
+boolean P_LoadGameState(savestate_t* savestate)
 {
 	UINT64 time = I_GetTimeUs();
-	angle_t preserveAngle = localangle;
-	INT32 preserveAiming = localaiming;
 	
 	save_p = ((unsigned char*)savestate->buffer);
 

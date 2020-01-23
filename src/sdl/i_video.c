@@ -209,11 +209,11 @@ static void SDLSetMode(INT32 width, INT32 height, SDL_bool fullscreen)
 			);
 
 			// Offset the window w/ command line parameters, useful for multiplayer testing via batch files
-			if (arg = M_CheckParm("-winxoff"))
+			if (( arg = M_CheckParm("-winxoff") ))
 			{
 				xoffset = atoi(arg + 1 < myargc ? myargv[arg + 1] : "0");
 			}
-			if (arg = M_CheckParm("-winyoff"))
+			if (( arg = M_CheckParm("-winyoff") ))
 			{
 				yoffset = atoi(arg + 1 < myargc ? myargv[arg + 1] : "0");
 			}
